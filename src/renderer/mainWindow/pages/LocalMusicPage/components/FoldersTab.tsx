@@ -16,7 +16,10 @@ import { RequestStatus } from '@common/constant';
 import { SongTable } from '../../../components/business/SongTable';
 import { StatusPlaceholder } from '../../../components/ui/StatusPlaceholder';
 import { useStatusColumn, useRowContextMenu, useSelection } from '../hooks';
+import type { HideableColumn } from '../../../components/business/SongTable';
 import { filteredLocalMusicAtom, folderListAtom, type FolderAggregation } from '../store';
+
+const HIDE_COLUMNS: HideableColumn[] = ['platform'];
 
 interface FoldersTabProps {
     isEmpty: boolean;
@@ -147,7 +150,7 @@ function FolderSongList({ folder, searchKeyword }: { folder: string; searchKeywo
                 requestStatus={RequestStatus.Done}
                 onRowContextMenu={handleRowContextMenu}
                 statusColumn={statusColumn}
-                hideColumns={['platform']}
+                hideColumns={HIDE_COLUMNS}
                 {...selectionProps}
             />
         </div>

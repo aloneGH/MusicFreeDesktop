@@ -16,7 +16,10 @@ import { SongTable } from '../../../components/business/SongTable';
 import { StatusPlaceholder } from '../../../components/ui/StatusPlaceholder';
 import { ScrollArea } from '../../../components/ui/ScrollArea';
 import { useStatusColumn, useRowContextMenu, useSelection } from '../hooks';
+import type { HideableColumn } from '../../../components/business/SongTable';
 import { filteredLocalMusicAtom, albumListAtom } from '../store';
+
+const HIDE_COLUMNS: HideableColumn[] = ['platform', 'album'];
 
 interface AlbumsTabProps {
     isEmpty: boolean;
@@ -135,7 +138,7 @@ export function AlbumsTab({ isEmpty, searchKeyword }: AlbumsTabProps) {
                         requestStatus={RequestStatus.Done}
                         onRowContextMenu={handleRowContextMenu}
                         statusColumn={statusColumn}
-                        hideColumns={['platform', 'album']}
+                        hideColumns={HIDE_COLUMNS}
                         {...selectionProps}
                     />
                 ) : (

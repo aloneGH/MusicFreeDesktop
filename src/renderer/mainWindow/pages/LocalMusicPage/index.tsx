@@ -22,7 +22,12 @@ import {
 import { ArtistsTab } from './components/ArtistsTab';
 import { AlbumsTab } from './components/AlbumsTab';
 import { FoldersTab } from './components/FoldersTab';
+import type { HideableColumn } from '../../components/business/SongTable';
 import './index.scss';
+
+// ─── Constants ───
+
+const HIDE_COLUMNS: HideableColumn[] = ['platform'];
 
 // ─── Tab 定义 ───
 
@@ -172,7 +177,7 @@ export default function LocalMusicPage() {
                             requestStatus={RequestStatus.Done}
                             onRowContextMenu={handleRowContextMenu}
                             statusColumn={statusColumn}
-                            hideColumns={['platform']}
+                            hideColumns={HIDE_COLUMNS}
                             {...selectionProps}
                         />
                     ))}

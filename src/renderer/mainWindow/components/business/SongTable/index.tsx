@@ -366,7 +366,11 @@ export function SongTable({
     activeDragIdRef.current = activeDragId;
 
     // ── 构建列定义 ──
-    const hideSet = useMemo(() => new Set(hideColumns ?? []), [hideColumns]);
+    // NOTE: 按内容（而非引用）稳定化 hideColumns，防止消费侧传入字面量数组时
+    // 每次渲染产生新引用，导致 columns → colGroup → virtuosoComponents 级联重建，
+    // 行 DOM 被销毁重建后浏览器无法在同一元素上触发 dblclick。
+    const hideColumnsKey = (hideColumns ?? []).join(',');
+    const hideSet = useMemo(() => new Set(hideColumns ?? []), [hideColumnsKey]);
 
     const columns = useMemo<InternalColumn[]>(() => {
         const cols: InternalColumn[] = [];
