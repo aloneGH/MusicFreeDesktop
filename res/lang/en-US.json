@@ -323,6 +323,7 @@
             "max_history_label": "Search history limit",
             "max_history_desc": "For search history display and recall",
             "history_count": "{{count}} entries",
+            "history_disabled": "Do not keep",
             "taskbar_thumb_label": "Taskbar thumbnail",
             "taskbar_thumb_desc": "Windows taskbar thumbnail display content (takes effect after restart)",
             "taskbar_window": "Window screenshot",

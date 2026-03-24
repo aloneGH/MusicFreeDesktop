@@ -323,6 +323,7 @@
             "max_history_label": "搜尋記錄保留條數",
             "max_history_desc": "用於搜尋歷史展示與回溯",
             "history_count": "{{count}} 條",
+            "history_disabled": "不保留",
             "taskbar_thumb_label": "任務欄縮略圖",
             "taskbar_thumb_desc": "Windows 任務欄縮略圖顯示內容（重新啟動後生效）",
             "taskbar_window": "視窗截圖",

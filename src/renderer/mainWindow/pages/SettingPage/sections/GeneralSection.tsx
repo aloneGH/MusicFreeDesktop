@@ -10,6 +10,7 @@ import { useConfigValue } from '@renderer/common/hooks/useConfigValue';
 import i18n, { useLangNames } from '@infra/i18n/renderer';
 import systemUtil from '@infra/systemUtil/renderer';
 import formatFileSize from '@common/formatFileSize';
+import { clearSearchHistory, truncateSearchHistory } from '../../../common/searchHistory';
 
 /**
  * 常规设置
@@ -99,8 +100,20 @@ export function GeneralSection() {
                 control={
                     <Select
                         value={String(maxHistory ?? 30)}
-                        onChange={(val) => setMaxHistory(Number(val))}
+                        onChange={(val) => {
+                            const num = Number(val);
+                            setMaxHistory(num);
+                            if (num <= 0) {
+                                clearSearchHistory();
+                            } else {
+                                truncateSearchHistory(num);
+                            }
+                        }}
                         options={[
+                            {
+                                value: '0',
+                                label: t('settings.general.history_disabled'),
+                            },
                             {
                                 value: '15',
                                 label: t('settings.general.history_count', { count: 15 }),

@@ -323,6 +323,7 @@
             "max_history_label": "搜索记录保留条数",
             "max_history_desc": "用于搜索历史展示与回溯",
             "history_count": "{{count}} 条",
+            "history_disabled": "不保留",
             "taskbar_thumb_label": "任务栏缩略图",
             "taskbar_thumb_desc": "Windows 任务栏缩略图显示内容（重启后生效）",
             "taskbar_window": "窗口截图",

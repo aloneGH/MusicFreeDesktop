@@ -96,7 +96,10 @@ export default function TopBar() {
     const handleFocus = useCallback(() => {
         clearTimeout(blurTimerRef.current);
         setIsSearchFocused(true);
-        setIsPanelOpen(true);
+        const maxHistory = appConfig.getConfigByKey('normal.maxHistoryLength') ?? 30;
+        if (maxHistory > 0) {
+            setIsPanelOpen(true);
+        }
     }, []);
 
     const handleBlur = useCallback(() => {
