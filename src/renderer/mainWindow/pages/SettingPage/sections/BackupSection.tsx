@@ -260,7 +260,6 @@ export function BackupSection() {
                 <>
                     <SettingRow
                         label={t('settings.backup.webdav_server_url')}
-                        description="https://dav.example.com"
                         control={
                             <Input
                                 value={webdavUrl.localValue}
