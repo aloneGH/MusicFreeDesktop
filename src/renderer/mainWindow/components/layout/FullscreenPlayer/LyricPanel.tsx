@@ -16,6 +16,8 @@ interface LyricPanelProps {
     fontScale: number;
     /** 是否显示翻译 */
     showTranslation: boolean;
+    /** 是否处于文本选择模式 */
+    isSelectable: boolean;
 }
 
 /** 活跃行基准字号 (px) — 对标设计稿 32px */
@@ -32,12 +34,19 @@ const USER_SCROLL_PAUSE = 4000;
 const prefersReducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: LyricPanelProps) {
+const LyricPanel = memo(function LyricPanel({
+    fontScale,
+    showTranslation,
+    isSelectable,
+}: LyricPanelProps) {
     const { t } = useTranslation();
     const lyricState = useLyric();
     const containerRef = useRef<HTMLDivElement>(null);
     const activeIndexRef = useRef<number>(-1);
     const isInitialRef = useRef(true);
+
+    const isSelectableRef = useRef(false);
+    isSelectableRef.current = isSelectable;
 
     // 拖拽滚动状态
     const dragState = useRef({
@@ -96,8 +105,10 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
         });
     }, [activeIndex]);
 
-    /** 拖拽开始 */
+    /** 拖拽开始（文本选择模式下跳过） */
     const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (isSelectableRef.current) return;
+
         const container = containerRef.current;
         if (!container) return;
 
@@ -111,8 +122,10 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
         wasDraggedRef.current = false;
     }, []);
 
-    /** 拖拽移动 */
+    /** 拖拽移动（文本选择模式下跳过） */
     const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (isSelectableRef.current) return;
+
         const state = dragState.current;
         if (!state.isDragging) return;
 
@@ -159,10 +172,9 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
         [pauseAutoScroll],
     );
 
-    /** 点击歌词行跳转播放位置（拖拽时不触发） */
+    /** 双击歌词行跳转播放位置（拖拽或文本选择模式下不触发） */
     const handleLyricClick = useCallback((item: IParsedLrcItem) => {
-        console.log('点击歌词行', item);
-        if (wasDraggedRef.current) return;
+        if (wasDraggedRef.current || isSelectableRef.current) return;
         trackPlayer.seekTo(item.time);
     }, []);
 
@@ -191,7 +203,7 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
     return (
         <div
             ref={containerRef}
-            className="l-fullscreen-player__lyric-scroll"
+            className={`l-fullscreen-player__lyric-scroll${isSelectable ? ' is-selectable' : ''}`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

@@ -220,6 +220,16 @@
         &.is-dragging {
             cursor: grabbing;
         }
+
+        &.is-selectable {
+            user-select: text;
+            cursor: text;
+
+            ::selection {
+                background-color: var(--color-fill-brand);
+                color: var(--color-text-on-brand);
+            }
+        }
         // 顶部/底部渐变遮罩
         mask-image: linear-gradient(
             to bottom,

@@ -168,7 +168,8 @@
         "download_lyric": "下载歌词",
         "more_actions": "更多操作",
         "search_and_replace": "搜索并替换歌词",
-        "source_info": "歌词来自 {{platform}} - {{title}}{{artist}}"
+        "source_info": "歌词来自 {{platform}} - {{title}}{{artist}}",
+        "select_mode": "选择模式"
     },
     "media": {
         "unknown_title": "未命名",

@@ -168,7 +168,8 @@
         "download_lyric": "Download Lyrics",
         "more_actions": "More Actions",
         "search_and_replace": "Search & Replace Lyrics",
-        "source_info": "Lyrics from {{platform}} - {{title}}{{artist}}"
+        "source_info": "Lyrics from {{platform}} - {{title}}{{artist}}",
+        "select_mode": "Select Mode"
     },
     "media": {
         "unknown_title": "Untitled",

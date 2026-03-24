@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, MoreHorizontal, Languages } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, Languages, TextCursorInput } from 'lucide-react';
 import { DesktopLyric } from '@renderer/common/icons';
 import { useAtomValue } from 'jotai/react';
 import { useTranslation } from 'react-i18next';
@@ -45,6 +45,7 @@ const FullscreenPlayer = memo(function FullscreenPlayer() {
     const [showTranslation, setShowTranslation] = useState(
         () => syncKV.get('player.showLyricTranslation') ?? true,
     );
+    const [isSelectable, setIsSelectable] = useState(false);
 
     // Escape 关闭
     useEffect(() => {
@@ -63,6 +64,7 @@ const FullscreenPlayer = memo(function FullscreenPlayer() {
     useEffect(() => {
         if (!open) {
             setSettingsOpen(false);
+            setIsSelectable(false);
         }
     }, [open]);
 
@@ -103,6 +105,10 @@ const FullscreenPlayer = memo(function FullscreenPlayer() {
     const handleTranslationToggle = useCallback(() => {
         handleShowTranslationChange(!showTranslation);
     }, [showTranslation, handleShowTranslationChange]);
+
+    const handleSelectableToggle = useCallback(() => {
+        setIsSelectable((prev) => !prev);
+    }, []);
 
     return createPortal(
         <AnimatePresence>
@@ -193,10 +199,24 @@ const FullscreenPlayer = memo(function FullscreenPlayer() {
                                 <LyricPanel
                                     fontScale={fontScale}
                                     showTranslation={showTranslation}
+                                    isSelectable={isSelectable}
                                 />
 
                                 {/* 右下角工具栏：翻译 / 桌面歌词 / 设置 */}
                                 <div className="l-fullscreen-player__settings-anchor">
+                                    <button
+                                        className={cn(
+                                            'l-fullscreen-player__tool-btn',
+                                            isSelectable && 'is-active',
+                                        )}
+                                        type="button"
+                                        title={t('lyric.select_mode')}
+                                        aria-label={t('lyric.select_mode')}
+                                        aria-pressed={isSelectable}
+                                        onClick={handleSelectableToggle}
+                                    >
+                                        <TextCursorInput size={16} />
+                                    </button>
                                     <button
                                         className={cn(
                                             'l-fullscreen-player__tool-btn',
