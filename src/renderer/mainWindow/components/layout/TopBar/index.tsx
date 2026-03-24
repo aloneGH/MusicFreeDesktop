@@ -177,6 +177,7 @@ export default function TopBar() {
                     placeholder={t('search.placeholder')}
                     aria-label={t('common.search')}
                     value={searchValue}
+                    spellCheck={false}
                     onChange={(e) => setSearchValue(e.target.value)}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
