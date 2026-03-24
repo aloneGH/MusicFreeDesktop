@@ -109,9 +109,6 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
         };
 
         wasDraggedRef.current = false;
-
-        container.classList.add('is-dragging');
-        container.setPointerCapture(e.pointerId);
     }, []);
 
     /** 拖拽移动 */
@@ -126,6 +123,8 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
 
         if (!state.hasMoved && Math.abs(deltaY) > DRAG_THRESHOLD) {
             state.hasMoved = true;
+            container.classList.add('is-dragging');
+            container.setPointerCapture(e.pointerId);
         }
 
         if (state.hasMoved) {
@@ -162,6 +161,7 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
 
     /** 点击歌词行跳转播放位置（拖拽时不触发） */
     const handleLyricClick = useCallback((item: IParsedLrcItem) => {
+        console.log('点击歌词行', item);
         if (wasDraggedRef.current) return;
         trackPlayer.seekTo(item.time);
     }, []);
@@ -214,7 +214,7 @@ const LyricPanel = memo(function LyricPanel({ fontScale, showTranslation }: Lyri
                                 ? `${ACTIVE_BASE_SIZE * fontScale}px`
                                 : `${INACTIVE_BASE_SIZE * fontScale}px`,
                         }}
-                        onClick={() => handleLyricClick(item)}
+                        onDoubleClick={() => handleLyricClick(item)}
                     >
                         <div className="l-fullscreen-player__lyric-text">{item.lrc}</div>
                         {showTranslation && item.translation && (
