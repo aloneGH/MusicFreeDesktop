@@ -261,7 +261,8 @@ class TrackPlayer {
 
         // 切歌
         this.playQueue.setCurrentIndex(index);
-        store.set(currentMusicAtom, targetSlim);
+        this.setCurrentMusic(targetSlim);
+
         store.set(playerStateAtom, PlayerState.Buffering);
         this.audioController.prepareTrack(targetSlim);
         this.resetProgress();
@@ -293,7 +294,6 @@ class TrackPlayer {
             this.audioController.play();
             this.consecutiveErrors = 0; // 播放成功，重置错误计数
 
-            this.setCurrentMusic(musicItem);
             syncKV.set('player.currentQuality', result.quality!);
 
             // 记录到最近播放（异步，不阻塞播放）
