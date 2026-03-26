@@ -328,7 +328,7 @@ class NativeTrayMenu {
                 break;
             }
             case MENU_ID.EXIT: {
-                app.exit(0);
+                app.quit();
                 break;
             }
         }

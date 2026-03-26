@@ -36,8 +36,7 @@ class SystemUtil {
 
     private setupAppHandlers() {
         ipcMain.on(IPC.EXIT_APP, () => {
-            this.windowManager.closeAllWindows();
-            app.exit(0);
+            app.quit();
         });
 
         ipcMain.handle(IPC.GET_CACHE_SIZE, async (evt) => {

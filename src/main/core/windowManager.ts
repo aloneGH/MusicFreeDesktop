@@ -104,8 +104,14 @@ const MINIMODE_HEIGHT = 120;
 class WindowManager implements IWindowManager {
     private windows = new Map<WindowType, BrowserWindow>();
     private ee = new EventEmitter();
+    private _isQuitting = false;
 
     constructor() {
+        // app.quit() 触发 before-quit，标记真正退出，让 close handler 放行
+        app.on('before-quit', () => {
+            this._isQuitting = true;
+        });
+
         // ─── Config 驱动窗口：config 是唯一控制源 ───
         appConfig.onConfigUpdated((patch) => {
             if ('lyric.enableDesktopLyric' in patch) {
@@ -404,9 +410,12 @@ class WindowManager implements IWindowManager {
             }
         });
 
-        // 关闭行为: 最小化到托盘
+        // 关闭行为: 最小化到托盘（真正退出时不拦截）
         mainWindow.on('close', (e) => {
-            if (appConfig.getConfigByKey('normal.closeBehavior') === 'minimize') {
+            if (
+                !this._isQuitting &&
+                appConfig.getConfigByKey('normal.closeBehavior') === 'minimize'
+            ) {
                 e.preventDefault();
                 mainWindow.hide();
                 if (process.platform === 'win32') {

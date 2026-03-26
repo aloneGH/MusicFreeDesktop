@@ -375,9 +375,8 @@ class AppTray {
 
         ctxMenu.push({
             label: i18n.t('common.exit'),
-            role: process.platform === 'win32' ? undefined : 'quit',
             click: () => {
-                app.exit(0);
+                app.quit();
             },
         });
 
