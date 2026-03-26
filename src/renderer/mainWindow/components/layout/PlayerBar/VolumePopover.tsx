@@ -121,7 +121,7 @@ const VolumePopover = memo(function VolumePopover() {
             <button
                 className="l-player-bar__ctrl-btn"
                 type="button"
-                title={volume === 0 ? t('playback.unmute') : t('playback.mute')}
+                title={t('playback.volume_percent', { volume: volumePct })}
                 onClick={() => {
                     if (volume === 0) {
                         trackPlayer.setVolume(prevVolumeRef.current || 1);
