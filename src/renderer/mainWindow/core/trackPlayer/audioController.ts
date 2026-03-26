@@ -91,6 +91,7 @@ class WebAudioController extends EventEmitter<IAudioControllerEvents> implements
     setTrackSource(source: IPlugin.IMediaSourceResult, _musicItem: IMusic.IMusicItem): void {
         this.destroyHls();
         this.revokeBlobUrl();
+        this.setPlayerState(PlayerState.None);
         const sourceId = ++this._sourceId;
 
         // 从 URL 的 userinfo 部分提取 Basic Auth（如 http://user:pass@host/...）
