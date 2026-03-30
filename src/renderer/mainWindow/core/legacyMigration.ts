@@ -16,6 +16,7 @@
 import { syncKV, asyncKV } from '@renderer/common/kvStore';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import type { IBackupData, IBackupSheet } from '@appTypes/infra/backup';
+import { DOWNLOADED_SHEET_ID } from '@infra/musicSheet/common/constant';
 
 // ─── 常量 ───
 
@@ -243,6 +244,20 @@ function sanitizeMusicItem(raw: any): IMusic.IMusicItem | null {
     return item as IMusic.IMusicItem;
 }
 
+function getLegacyDownloadData(item: IMusic.IMusicItem): {
+    path: string;
+    quality: IMusic.IQualityKey;
+} | null {
+    const downloadData = (item as any).$?.downloadData;
+    if (!downloadData?.path || !downloadData?.quality) {
+        return null;
+    }
+    return {
+        path: downloadData.path,
+        quality: downloadData.quality,
+    };
+}
+
 // ─── 执行迁移 ───
 
 /**
@@ -257,6 +272,7 @@ function sanitizeMusicItem(raw: any): IMusic.IMusicItem | null {
 export async function executeMigration(): Promise<MigrationResult> {
     // 延迟导入避免循环依赖
     const { default: backup } = await import('@infra/backup/renderer');
+    const { default: mediaMeta } = await import('@infra/mediaMeta/renderer');
     const { default: musicSheet, playQueueBridge } = await import('@infra/musicSheet/renderer');
     const { default: fsUtil } = await import('@infra/fsUtil/renderer');
 
@@ -297,6 +313,13 @@ export async function executeMigration(): Promise<MigrationResult> {
 
         // 组装 IBackupSheet[]
         const backupSheets: IBackupSheet[] = [];
+        const downloadedItems = new Map<
+            string,
+            {
+                item: IMusic.IMusicItem;
+                downloadData: { path: string; quality: IMusic.IQualityKey };
+            }
+        >();
         let totalSongs = 0;
 
         for (const sheet of sheets) {
@@ -306,6 +329,14 @@ export async function executeMigration(): Promise<MigrationResult> {
                 const item = musicPool.get(`${ref.platform}@${ref.id}`);
                 if (item) {
                     musicList.push(item);
+
+                    const downloadData = getLegacyDownloadData(item);
+                    if (downloadData) {
+                        downloadedItems.set(`${item.platform}@${item.id}`, {
+                            item,
+                            downloadData,
+                        });
+                    }
                 }
             }
 
@@ -335,6 +366,19 @@ export async function executeMigration(): Promise<MigrationResult> {
                     encoding: 'utf-8',
                 });
                 await backup.restoreFromFile(tempPath, 'append');
+
+                if (downloadedItems.size > 0) {
+                    for (const [, { item, downloadData }] of downloadedItems) {
+                        await mediaMeta.setMeta(item.platform, String(item.id), {
+                            downloadData,
+                        });
+                    }
+
+                    musicSheet.addMusicToSheet(
+                        Array.from(downloadedItems.values(), ({ item }) => item),
+                        DOWNLOADED_SHEET_ID,
+                    );
+                }
             } finally {
                 // 无论成功失败均删除临时文件
                 try {
