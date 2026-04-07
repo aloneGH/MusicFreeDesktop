@@ -274,6 +274,7 @@ export default function LocalSheetPage() {
                         onSelectionChange={setSelectedIds}
                         enableDragSort={!isSearching}
                         onDragSortEnd={handleDragSortEnd}
+                        enableSort
                         statusColumn={(item) => (
                             <>
                                 <FavoriteButton musicItem={item} size="sm" />

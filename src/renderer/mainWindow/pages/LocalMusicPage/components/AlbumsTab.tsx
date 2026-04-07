@@ -139,6 +139,7 @@ export function AlbumsTab({ isEmpty, searchKeyword }: AlbumsTabProps) {
                         onRowContextMenu={handleRowContextMenu}
                         statusColumn={statusColumn}
                         hideColumns={HIDE_COLUMNS}
+                        enableSort
                         {...selectionProps}
                     />
                 ) : (

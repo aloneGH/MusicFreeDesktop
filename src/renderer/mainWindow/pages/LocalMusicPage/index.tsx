@@ -178,6 +178,7 @@ export default function LocalMusicPage() {
                             onRowContextMenu={handleRowContextMenu}
                             statusColumn={statusColumn}
                             hideColumns={HIDE_COLUMNS}
+                            enableSort
                             {...selectionProps}
                         />
                     ))}

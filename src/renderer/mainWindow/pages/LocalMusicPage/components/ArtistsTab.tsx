@@ -117,6 +117,7 @@ export function ArtistsTab({ isEmpty, searchKeyword }: ArtistsTabProps) {
                         onRowContextMenu={handleRowContextMenu}
                         statusColumn={statusColumn}
                         hideColumns={HIDE_COLUMNS}
+                        enableSort
                         {...selectionProps}
                     />
                 ) : (

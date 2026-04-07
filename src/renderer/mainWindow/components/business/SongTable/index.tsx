@@ -22,6 +22,7 @@ import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { tinykeys } from 'tinykeys';
 import { useTranslation } from 'react-i18next';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@common/cn';
 import { RequestStatus } from '@common/constant';
 import { useCurrentMusic } from '../../../core/trackPlayer/hooks';
@@ -39,6 +40,12 @@ import trackPlayer from '../../../core/trackPlayer';
 
 /** 可通过 hideColumns 隐藏的列 key */
 export type HideableColumn = 'index' | 'artist' | 'album' | 'platform' | 'duration';
+
+/** 可排序的列 key */
+export type SortableColumn = 'title' | 'artist' | 'album' | 'duration';
+
+/** 排序方向 */
+export type SortDirection = 'asc' | 'desc';
 
 /** 行交互事件的上下文信息 */
 export interface RowInteractionDetail {
@@ -127,6 +134,10 @@ export interface SongTableProps {
     /** 需要隐藏的列（标题列不可隐藏） */
     hideColumns?: HideableColumn[];
 
+    // ── 列排序 ──
+    /** 是否启用点击列标题排序 @default false */
+    enableSort?: boolean;
+
     /** 外部滚动容器元素（不传则自动查找 .l-app-shell__content 或回退到 window） */
     scrollParent?: HTMLElement;
     /** 额外 className */
@@ -143,6 +154,7 @@ interface InternalColumn {
     width?: number | string;
     align?: 'left' | 'center' | 'right';
     cellClassName?: string;
+    sortable?: boolean;
     render: (item: IMusic.IMusicItemBase, index: number) => ReactNode;
 }
 
@@ -307,10 +319,11 @@ export function SongTable({
     statusColumnWidth = 72,
     showActiveIndicator = true,
     hideColumns = appConfig.getConfigByKey('normal.musicListHideColumns'),
+    enableSort = false,
     scrollParent: externalScrollParent,
     className,
 }: SongTableProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const currentMusic = useCurrentMusic();
     const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
     const virtuosoRef = useRef<TableVirtuosoHandle>(null);
@@ -342,7 +355,8 @@ export function SongTable({
 
     // ── 频繁变化值存入 ref，避免 virtuosoComponents 依赖频繁重建 ──
     const dataRef = useRef(data);
-    dataRef.current = data;
+    // dataRef.current 在 sortedData 计算后更新为排序结果
+
     const selectedIdsRef = useRef(selectedIds);
     selectedIdsRef.current = selectedIds;
     const currentMusicRef = useRef(currentMusic);
@@ -391,6 +405,7 @@ export function SongTable({
             id: 'title',
             header: t('media.title'),
             cellClassName: 'song-table__cell--title',
+            sortable: enableSort,
             render: (item) => item.title,
         });
 
@@ -399,6 +414,7 @@ export function SongTable({
                 id: 'artist',
                 header: t('media.artist'),
                 width: '18%',
+                sortable: enableSort,
                 render: (item) => item.artist,
             });
         }
@@ -408,6 +424,7 @@ export function SongTable({
                 id: 'album',
                 header: t('media.album'),
                 width: '16%',
+                sortable: enableSort,
                 render: (item) => item.album ?? '',
             });
         }
@@ -419,6 +436,7 @@ export function SongTable({
                 width: 80,
                 align: 'right',
                 cellClassName: 'song-table__cell--duration',
+                sortable: enableSort,
                 render: (item) => formatDuration(item.duration),
             });
         }
@@ -435,7 +453,84 @@ export function SongTable({
         }
 
         return cols;
-    }, [hideSet, t]);
+    }, [hideSet, t, enableSort]);
+
+    // ── 列排序状态 ──
+    const [sortState, setSortState] = useState<{
+        column: SortableColumn | null;
+        direction: SortDirection;
+    }>({ column: null, direction: 'asc' });
+    const sortColumn = sortState.column;
+    const sortDirection = sortState.direction;
+    const sortColumnRef = useRef(sortColumn);
+    sortColumnRef.current = sortColumn;
+
+    const handleHeaderClick = useCallback((colId: string) => {
+        const col = colId as SortableColumn;
+        setSortState((prev) => {
+            if (prev.column !== col) {
+                return { column: col, direction: 'asc' };
+            }
+            if (prev.direction === 'asc') {
+                return { column: col, direction: 'desc' };
+            }
+            // desc → 无排序
+            return { column: null, direction: 'asc' };
+        });
+    }, []);
+
+    // ── 排序比较器（缓存 Intl.Collator） ──
+    const collator = useMemo(
+        () => new Intl.Collator(i18n.language, { sensitivity: 'base' }),
+        [i18n.language],
+    );
+
+    // ── 排序后数据 ──
+    const sortedData = useMemo(() => {
+        if (!enableSort || !sortColumn) return data;
+
+        const dir = sortDirection === 'asc' ? 1 : -1;
+
+        return [...data].sort((a, b) => {
+            let result: number;
+            switch (sortColumn) {
+                case 'title':
+                    result = collator.compare(a.title ?? '', b.title ?? '');
+                    break;
+                case 'artist': {
+                    const aVal = a.artist ?? '';
+                    const bVal = b.artist ?? '';
+                    // 空值置底（不受排序方向影响）
+                    if (!aVal && bVal) return 1;
+                    if (aVal && !bVal) return -1;
+                    result = collator.compare(aVal, bVal);
+                    break;
+                }
+                case 'album': {
+                    const aVal = a.album ?? '';
+                    const bVal = b.album ?? '';
+                    if (!aVal && bVal) return 1;
+                    if (aVal && !bVal) return -1;
+                    result = collator.compare(aVal, bVal);
+                    break;
+                }
+                case 'duration': {
+                    const aDur = a.duration ?? 0;
+                    const bDur = b.duration ?? 0;
+                    // 0/null 置底
+                    if (!aDur && bDur) return 1;
+                    if (aDur && !bDur) return -1;
+                    result = aDur - bDur;
+                    break;
+                }
+                default:
+                    result = 0;
+            }
+            return result * dir;
+        });
+    }, [data, enableSort, sortColumn, sortDirection, collator]);
+
+    dataRef.current = sortedData;
 
     // ── colgroup（控制列宽） ──
     const colGroup = useMemo(
@@ -568,7 +663,7 @@ export function SongTable({
 
     // ── DnD ──
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-    const sortableIds = useMemo(() => data.map((d) => d.id), [data]);
+    const sortableIds = useMemo(() => sortedData.map((d) => d.id), [sortedData]);
 
     const handleDragStart = useCallback(
         (event: DragStartEvent) => {
@@ -615,8 +710,8 @@ export function SongTable({
     // 当前拖拽项信息（DragOverlay 使用）
     const activeDragItem = useMemo(() => {
         if (!activeDragId) return null;
-        return data.find((d) => d.id === activeDragId) ?? null;
-    }, [activeDragId, data]);
+        return sortedData.find((d) => d.id === activeDragId) ?? null;
+    }, [activeDragId, sortedData]);
 
     // ── 加载更多 ──
     const handleEndReached = useCallback(() => {
@@ -625,6 +720,9 @@ export function SongTable({
     }, [onLoadMore]);
 
     // ── Virtuoso: 表头 ──
+    const handleHeaderClickRef = useRef(handleHeaderClick);
+    handleHeaderClickRef.current = handleHeaderClick;
+
     const fixedHeaderContent = useCallback(
         () => (
             <tr className="song-table__header-row">
@@ -633,20 +731,42 @@ export function SongTable({
                         {statusColumnHeader}
                     </th>
                 )}
-                {columns.map((col) => (
-                    <th
-                        key={col.id}
-                        className={cn(
-                            'song-table__header-cell',
-                            col.align && `song-table__header-cell--${col.align}`,
-                        )}
-                    >
-                        {col.header}
-                    </th>
-                ))}
+                {columns.map((col) => {
+                    const isSorting = sortColumn === col.id;
+                    const dir = isSorting ? sortDirection : null;
+                    return (
+                        <th
+                            key={col.id}
+                            className={cn(
+                                'song-table__header-cell',
+                                col.align && `song-table__header-cell--${col.align}`,
+                                col.sortable && 'is-sortable',
+                                isSorting && 'is-sorting',
+                            )}
+                            onClick={
+                                col.sortable
+                                    ? () => handleHeaderClickRef.current(col.id)
+                                    : undefined
+                            }
+                        >
+                            <span className="song-table__header-label">
+                                {col.header}
+                                {col.sortable && isSorting && (
+                                    <span className="song-table__sort-indicator">
+                                        {dir === 'asc' ? (
+                                            <ArrowUp size={12} />
+                                        ) : (
+                                            <ArrowDown size={12} />
+                                        )}
+                                    </span>
+                                )}
+                            </span>
+                        </th>
+                    );
+                })}
             </tr>
         ),
-        [columns, hasStatusColumn, statusColumnHeader],
+        [columns, hasStatusColumn, statusColumnHeader, sortColumn, sortDirection],
     );
 
     // ── Virtuoso: 单元格内容 ──
@@ -741,7 +861,7 @@ export function SongTable({
                         id={item.id}
                         isActive={isActive}
                         isSelected={isSelected}
-                        isDragEnabled
+                        isDragEnabled={!sortColumnRef.current}
                         isDragGhost={isDragGhost}
                         rowHeight={rowHeight}
                         onClick={onClick}
@@ -822,7 +942,7 @@ export function SongTable({
         >
             <TableVirtuoso
                 ref={virtuosoRef}
-                data={data}
+                data={sortedData}
                 customScrollParent={scrollParent}
                 useWindowScroll={!scrollParent}
                 fixedHeaderContent={fixedHeaderContent}

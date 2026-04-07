@@ -40,5 +40,6 @@
     "[markdown]": {
         "files.trimTrailingWhitespace": false
     },
-    "js/ts.preferences.preferTypeOnlyAutoImports": true
+    "js/ts.preferences.preferTypeOnlyAutoImports": true,
+    "js/ts.tsdk.path": "node_modules\\typescript\\lib"
 }

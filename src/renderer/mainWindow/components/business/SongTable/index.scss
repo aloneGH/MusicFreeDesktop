@@ -60,9 +60,35 @@
     &--right {
         text-align: right;
     }
+
+    &.is-sortable {
+        cursor: pointer;
+        user-select: none;
+
+        &:hover {
+            color: var(--color-text-primary);
+        }
+    }
+
+    &.is-sorting {
+        color: var(--color-text-primary);
+    }
 }
 
 // ── 数据行 ──
+
+.song-table__header-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1); // 4px
+}
+
+.song-table__sort-indicator {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--color-text-primary);
+}
 
 .song-table__row {
     height: 48px;

@@ -151,6 +151,7 @@ function FolderSongList({ folder, searchKeyword }: { folder: string; searchKeywo
                 onRowContextMenu={handleRowContextMenu}
                 statusColumn={statusColumn}
                 hideColumns={HIDE_COLUMNS}
+                enableSort
                 {...selectionProps}
             />
         </div>
