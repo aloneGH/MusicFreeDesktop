@@ -24,6 +24,7 @@ import {
     Trash2,
     Download,
     FolderOpen,
+    PenLine,
 } from 'lucide-react';
 
 export interface MusicItemMenuContext {
@@ -214,6 +215,23 @@ export function MusicItemMenu(ctx: MusicItemMenuContext): ContextMenuEntry[] {
                     }
                 },
             });
+
+            // 编辑元数据：仅纯本地歌曲
+            if (singleItem.platform === LOCAL_PLUGIN_NAME && singleItem.localPath) {
+                entries.push({
+                    id: 'edit-meta',
+                    icon: <PenLine />,
+                    label: i18n.t('local_music.edit_metadata'),
+                    onClick: () => {
+                        showModal('EditMusicMetaModal', {
+                            filePath: singleItem.localPath,
+                            title: singleItem.title,
+                            artist: singleItem.artist ?? '',
+                            album: singleItem.album ?? '',
+                        });
+                    },
+                });
+            }
         }
 
         if (downloaded && sheetId === DOWNLOADED_SHEET_ID) {

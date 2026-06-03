@@ -38,6 +38,13 @@ const mod = {
             ipcRenderer.removeListener(IPC.SCAN_PROGRESS, handler);
         };
     },
+
+    // ─── 编辑元数据 ───
+    updateMusicItemMetadata: (
+        filePath: string,
+        meta: { title: string; artist: string; album: string },
+    ): Promise<{ fileTagWritten: boolean; tagWarning: string | null }> =>
+        ipcRenderer.invoke(IPC.UPDATE_MUSIC_ITEM, filePath, meta),
 };
 
 contextBridge.exposeInMainWorld(CONTEXT_BRIDGE_KEY, mod);

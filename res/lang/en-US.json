@@ -34,6 +34,7 @@
         "retry": "Retry",
         "select_hint": "Select",
         "copied": "Copied",
+        "saved": "Saved",
         "expand": "Expand",
         "collapse": "Collapse",
         "required": "Required"
@@ -541,6 +542,7 @@
         "song_count": "{{count}} songs",
         "no_artist_selected": "Select an artist",
         "no_album_selected": "Select an album",
+        "edit_metadata": "Edit Metadata",
         "empty_title": "No Local Music",
         "empty_desc": "Scan folders to import local music",
         "scan_empty_desc": "No scan folders added",
@@ -561,7 +563,9 @@
         "scan_folder_child_overlap": "This path is already included in \"{{parent}}\"",
         "scan_folder_parent_overlap": "This path overlaps with existing folder \"{{child}}\"",
         "scan_failed": "Scan failed, please try again",
-        "filter_short_audio": "Filter audio shorter than 1 minute"
+        "filter_short_audio": "Filter audio shorter than 1 minute",
+        "metadata_saved_to_file": "Metadata saved to audio file",
+        "metadata_format_hint": "{{ext}} format does not support embedded tags. Changes are only saved to the database"
     },
     "quality": {
         "switch": "Change Quality",

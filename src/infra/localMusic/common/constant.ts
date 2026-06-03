@@ -16,6 +16,9 @@ export const IPC = {
     // ─── 删除 ───
     DELETE_ITEMS: '@infra/local-music/delete-items',
 
+    // ─── 编辑元数据 ───
+    UPDATE_MUSIC_ITEM: '@infra/local-music/update-music-item',
+
     // ─── 广播 ───
     SCAN_PROGRESS: '@infra/local-music/scan-progress',
     LIBRARY_CHANGED: '@infra/local-music/library-changed',

@@ -22,6 +22,11 @@ interface IMod {
 
     onLibraryChanged(cb: () => void): () => void;
     onScanProgress(cb: (progress: IScanProgress) => void): () => void;
+
+    updateMusicItemMetadata(
+        filePath: string,
+        meta: { title: string; artist: string; album: string },
+    ): Promise<{ fileTagWritten: boolean; tagWarning: string | null }>;
 }
 
 const mod = window[CONTEXT_BRIDGE_KEY as any] as unknown as IMod;
@@ -56,6 +61,23 @@ class LocalMusicRenderer {
 
     public onScanProgress(cb: (progress: IScanProgress) => void): () => void {
         return mod.onScanProgress(cb);
+    }
+
+    // ─── 编辑元数据 ───
+
+    /**
+     * 更新本地歌曲的标题、艺术家、专辑。
+     * 仅对 platform === LOCAL_PLUGIN_NAME 的歌曲有效。
+     * 修改后会触发 LIBRARY_CHANGED 广播，UI 自动刷新。
+     *
+     * @returns fileTagWritten — 是否成功写入了文件标签
+     * @returns tagWarning — 文件格式不支持写入标签时的提示信息
+     */
+    public updateMusicItemMetadata(
+        filePath: string,
+        meta: { title: string; artist: string; album: string },
+    ): Promise<{ fileTagWritten: boolean; tagWarning: string | null }> {
+        return mod.updateMusicItemMetadata(filePath, meta);
     }
 
     // ─── 扫描文件夹管理 ───
