@@ -34,6 +34,7 @@
         "retry": "重試",
         "select_hint": "請選擇",
         "copied": "已複製",
+        "saved": "已儲存",
         "expand": "展開",
         "collapse": "收起",
         "required": "必填"
@@ -541,6 +542,7 @@
         "song_count": "{{count}} 首",
         "no_artist_selected": "請選擇一位歌手",
         "no_album_selected": "請選擇一張專輯",
+        "edit_metadata": "編輯中繼資料",
         "empty_title": "暫無本地音樂",
         "empty_desc": "請先掃描資料夾以匯入本地音樂",
         "scan_empty_desc": "暫無掃描資料夾",
@@ -561,7 +563,9 @@
         "scan_folder_child_overlap": "該路徑已被包含在「{{parent}}」中",
         "scan_folder_parent_overlap": "該路徑與已有資料夾「{{child}}」存在包含關係",
         "scan_failed": "掃描失敗，請重試",
-        "filter_short_audio": "過濾時長小於 1 分鐘的音頻"
+        "filter_short_audio": "過濾時長小於 1 分鐘的音頻",
+        "metadata_saved_to_file": "中繼資料已儲存至音訊檔案",
+        "metadata_format_hint": "{{ext}} 格式不支援寫入嵌入式標籤，修改僅儲存至資料庫"
     },
     "quality": {
         "switch": "選擇音樂音質",

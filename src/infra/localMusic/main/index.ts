@@ -28,6 +28,7 @@ import { pathToFileURL } from 'url';
 import { IPC, SCAN_BATCH_SIZE } from '../common/constant';
 import { discoverAudioFiles, diffWithDb } from './scanner';
 import { parseFileMetadata } from './metadataParser';
+import { canWriteTags, writeFileTags } from './metadataWriter';
 
 // ─── Prepared Statements ───
 
@@ -45,6 +46,9 @@ interface ILocalMusicQueries {
     getLocalMusicByScanFolder: Database.Statement;
 
     getAllMusic: Database.Statement;
+
+    /** 更新本地歌曲的标题/艺术家/专辑 */
+    updateMusicMeta: Database.Statement;
 }
 
 function createQueries(db: Database.Database): ILocalMusicQueries {
@@ -102,6 +106,12 @@ function createQueries(db: Database.Database): ILocalMusicQueries {
                    duration, artwork, folder, file_size AS fileSize, file_mtime AS fileMtime,
                    scan_folder_id AS scanFolderId, created_at AS createdAt
             FROM local_music ORDER BY title
+        `),
+
+        // ─── 更新元数据 ───
+        updateMusicMeta: db.prepare(`
+            UPDATE local_music SET title = @title, artist = @artist, album = @album
+            WHERE file_path = @filePath
         `),
     };
 }
@@ -284,6 +294,40 @@ class LocalMusicManager {
                 })();
 
                 this.broadcastLibraryChanged();
+            },
+        );
+
+        // ─── 更新本地歌曲元数据 ───
+        ipcMain.handle(
+            IPC.UPDATE_MUSIC_ITEM,
+            async (
+                _evt,
+                filePath: string,
+                meta: { title: string; artist: string; album: string },
+            ): Promise<{ fileTagWritten: boolean; tagWarning: string | null }> => {
+                // 1. 写入文件标签（支持格式才实际写入）
+                const tagWarning = canWriteTags(filePath);
+                let fileTagWritten = false;
+
+                if (tagWarning === null) {
+                    try {
+                        await writeFileTags(filePath, meta);
+                        fileTagWritten = true;
+                    } catch {
+                        // 文件写入失败不阻塞 DB 更新
+                    }
+                }
+
+                // 2. 更新数据库
+                this.queries.updateMusicMeta.run({
+                    filePath,
+                    title: meta.title,
+                    artist: meta.artist,
+                    album: meta.album,
+                });
+
+                this.broadcastLibraryChanged();
+                return { fileTagWritten, tagWarning };
             },
         );
     }

@@ -34,6 +34,7 @@
         "retry": "重试",
         "select_hint": "请选择",
         "copied": "已复制",
+        "saved": "已保存",
         "expand": "展开",
         "collapse": "收起",
         "required": "必填"
@@ -541,6 +542,7 @@
         "song_count": "{{count}} 首",
         "no_artist_selected": "请选择一位歌手",
         "no_album_selected": "请选择一张专辑",
+        "edit_metadata": "编辑元数据",
         "empty_title": "暂无本地音乐",
         "empty_desc": "请先扫描文件夹以导入本地音乐",
         "scan_empty_desc": "暂无扫描文件夹",
@@ -561,7 +563,9 @@
         "scan_folder_child_overlap": "该路径已被包含在「{{parent}}」中",
         "scan_folder_parent_overlap": "该路径与已有文件夹「{{child}}」存在包含关系",
         "scan_failed": "扫描失败，请重试",
-        "filter_short_audio": "过滤时长小于 1 分钟的音频"
+        "filter_short_audio": "过滤时长小于 1 分钟的音频",
+        "metadata_saved_to_file": "元数据已保存至音频文件",
+        "metadata_format_hint": "{{ext}} 格式不支持写入嵌入式标签，修改仅保存至数据库"
     },
     "quality": {
         "switch": "切换音质",
