@@ -6,7 +6,10 @@ import { A } from '@renderer/mainWindow/components/ui/A';
 import systemUtil from '@infra/systemUtil/renderer';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import wechatQR from '@assets/imgs/wechat_channel1.png';
-import { Github, MonitorPlay, BookHeart, Twitter, type LucideIcon } from 'lucide-react';
+import { MonitorPlay, BookHeart } from 'lucide-react';
+import { GithubIcon, XIcon } from '../components/BrandIcons';
+
+type SocialIcon = React.ComponentType<{ size?: number; className?: string }>;
 
 const GITHUB_REPO = 'https://github.com/maotoumao/MusicFreeDesktop';
 const GITHUB_AUTHOR = 'https://github.com/maotoumao';
@@ -19,13 +22,13 @@ const OFFICIAL_SITE = 'https://musicfree.catcat.work';
 const LICENSE_URL = `${GITHUB_REPO}/blob/master/LICENSE`;
 
 const SOCIAL_LINKS_DATA: {
-    icon: LucideIcon;
+    icon: SocialIcon;
     labelKey?: string;
     label?: string;
     handle: string;
     url: string;
 }[] = [
-    { icon: Github, label: 'GitHub', handle: '@猫头猫', url: GITHUB_AUTHOR },
+    { icon: GithubIcon, label: 'GitHub', handle: '@猫头猫', url: GITHUB_AUTHOR },
     { icon: MonitorPlay, label: 'Bilibili', handle: '@不想睡觉猫头猫', url: BILIBILI_AUTHOR },
     {
         icon: BookHeart,
@@ -33,7 +36,7 @@ const SOCIAL_LINKS_DATA: {
         handle: '@一只猫头猫',
         url: XIAOHONGSHU_AUTHOR,
     },
-    { icon: Twitter, label: 'X', handle: '@upupfun', url: X_AUTHOR },
+    { icon: XIcon, label: 'X', handle: '@upupfun', url: X_AUTHOR },
 ];
 
 export function AboutSection() {
@@ -138,7 +141,7 @@ function SocialChip({
     handle,
     url,
 }: {
-    icon: LucideIcon;
+    icon: SocialIcon;
     label: string;
     handle: string;
     url: string;
