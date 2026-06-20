@@ -250,8 +250,9 @@ export function MusicItemMenu(ctx: MusicItemMenuContext): ContextMenuEntry[] {
             });
         }
 
-        if (downloaded) {
+        if (downloaded && singleItem.platform !== LOCAL_PLUGIN_NAME) {
             // 删除已下载的本地文件（同时删除下载记录）
+            // 排除纯本地歌曲（allLocal 路径已提供更完整的删除：删文件 + 从歌单移除 + 从队列移除）
             entries.push({
                 id: 'delete-local-file',
                 icon: <Trash2 />,
