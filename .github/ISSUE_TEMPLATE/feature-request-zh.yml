@@ -8,6 +8,8 @@ body:
               感谢你提出功能建议！请尽量描述清楚你的需求场景，这将帮助我们更好地理解和评估。
 
               > **注意**：插件相关的功能请求请勿在此提交。
+              >
+              > **关于处理流程**：并非所有功能请求都会被实现。Issue 默认保持开放，被标记为 `accepted` 后才会进入排期；长期未被 `accepted` 且无活动的 Issue 会被自动标记 `stale` 并关闭。实现此功能的 PR 需在描述中用 `Closes #编号` 关联一个已 `accepted` 的 Issue，否则会被自动关闭。
 
     - type: checkboxes
       id: checklist

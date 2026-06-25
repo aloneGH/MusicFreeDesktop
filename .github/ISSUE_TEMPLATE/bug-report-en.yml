@@ -8,6 +8,8 @@ body:
               Thank you for submitting a bug report! Please fill in the following information as thoroughly as possible to help us locate and fix the issue faster.
 
               > **Note**: Please do not submit plugin-related issues here. This project is a player only and does not provide music sources.
+              >
+              > **How issues are handled**: Issues stay open by default and only get scheduled once marked `accepted`. Issues left without `accepted` and with no activity are eventually marked `stale` and closed. A PR fixing this bug must reference an `accepted` issue via `Closes #<number>` in its description.
 
     - type: checkboxes
       id: checklist

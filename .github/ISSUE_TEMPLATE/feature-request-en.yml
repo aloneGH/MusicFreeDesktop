@@ -8,6 +8,8 @@ body:
               Thank you for your feature suggestion! Please describe your use case as clearly as possible to help us better understand and evaluate the request.
 
               > **Note**: Please do not submit plugin-related feature requests here.
+              >
+              > **How requests are handled**: Not every feature request will be implemented. Issues stay open by default and only get scheduled once marked `accepted`. Issues left without `accepted` and with no activity are eventually marked `stale` and closed. A PR implementing this feature must reference an `accepted` issue via `Closes #<number>` in its description, otherwise it will be closed automatically.
 
     - type: checkboxes
       id: checklist

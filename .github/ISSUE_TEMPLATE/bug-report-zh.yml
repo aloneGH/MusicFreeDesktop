@@ -8,6 +8,8 @@ body:
               感谢你提交 Bug 报告！请尽可能详细地填写以下信息，这将帮助我们更快地定位和修复问题。
 
               > **注意**：插件相关的问题请勿在此提交，本项目仅是播放器，不提供音源。
+              >
+              > **关于处理流程**：Issue 默认保持开放，被标记为 `accepted` 后才会进入排期；长期未被 `accepted` 且无活动的 Issue 会被自动标记 `stale` 并关闭。修复此问题的 PR 需在描述中用 `Closes #编号` 关联一个已 `accepted` 的 Issue。
 
     - type: checkboxes
       id: checklist
