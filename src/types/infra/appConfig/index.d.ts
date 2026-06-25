@@ -66,6 +66,10 @@ interface _IAppConfig {
     'download.whenQualityMissing': 'higher' | 'lower';
     /** 最多同时下载 */
     'download.concurrency': number;
+    /** 下载启动间隔（秒），两次任务启动之间的最小间隔，0 表示关闭 */
+    'download.interval': number;
+    /** 下载启动间隔的随机抖动（秒），实际间隔在 interval ± jitter 之间 */
+    'download.intervalJitter': number;
 
     /** 是否自动升级插件 */
     'plugin.autoUpdatePlugin': boolean;

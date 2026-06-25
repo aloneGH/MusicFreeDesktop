@@ -384,7 +384,12 @@
             "download_lower": "Download lower quality",
             "download_higher": "Download higher quality",
             "concurrency_label": "Concurrent downloads",
-            "concurrency_desc": "Maximum number of simultaneous downloads"
+            "concurrency_desc": "Maximum number of simultaneous downloads",
+            "interval_label": "Download interval",
+            "interval_desc": "Minimum interval between starting two tasks. 0 to disable",
+            "interval_jitter_label": "Random jitter",
+            "interval_jitter_desc": "Seconds of random variation added to the download interval",
+            "seconds_unit": "sec"
         },
         "lyric": {
             "subtitle": "Style, Color & Display Settings",

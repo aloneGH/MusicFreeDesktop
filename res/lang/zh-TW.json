@@ -384,7 +384,12 @@
             "download_lower": "下載更低音質",
             "download_higher": "下載更高音質",
             "concurrency_label": "同時下載數量",
-            "concurrency_desc": "最多同時下載的任務數"
+            "concurrency_desc": "最多同時下載的任務數",
+            "interval_label": "下載間隔",
+            "interval_desc": "兩首任務啟動之間的最小間隔，0 表示關閉",
+            "interval_jitter_label": "隨機抖動",
+            "interval_jitter_desc": "在下載間隔基礎上上下隨機浮動的秒數",
+            "seconds_unit": "秒"
         },
         "lyric": {
             "subtitle": "樣式、顏色與顯示策略",

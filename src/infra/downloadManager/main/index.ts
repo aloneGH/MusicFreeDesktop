@@ -14,6 +14,7 @@ import path from 'path';
 import fsp from 'fs/promises';
 import type Database from 'better-sqlite3';
 import throttle, { type IThrottledFunction } from '@common/throttle';
+import delay from '@common/delay';
 import { QUALITY_KEYS, INTERNAL_SLIM_KEY } from '@common/constant';
 import sanitizeFileName from '@common/sanitizeFileName';
 import { safeParse, safeStringify } from '@common/safeSerialize';
@@ -90,6 +91,8 @@ class DownloadManager {
     private taskGeneration = new Map<string, number>();
     /** 下载进度缓存（用于节流广播） */
     private progressCache = new Map<string, IDownloadProgress>();
+    /** 下一个任务允许启动的最早时间戳（启动间隔闸门） */
+    private nextAllowedStart = 0;
     /** 预编译 SQL */
     private queries!: IQueries;
     /** 下载完成时的原子事务 */
@@ -400,6 +403,31 @@ class DownloadManager {
             .map((r) => r.value);
     }
 
+    /**
+     * 启动间隔闸门：约束相邻两次任务“启动”之间的最小间隔（而非“上一个下完到下一个开始”）。
+     *
+     * 同步预约 nextAllowedStart，使并发回调各自抢到错开的启动时隙；闲置足够久时等待为 0、立即启动。
+     * 实际间隔 = interval ± random(0..jitter)。覆盖 add/resume/resumeAll/retry 全部入口。
+     */
+    private async acquireLaunchSlot(): Promise<void> {
+        const intervalSec = this.appConfig.getConfigByKey('download.interval') ?? 0;
+        if (!(intervalSec > 0)) return; // 间隔关闭
+
+        const jitterSec = this.appConfig.getConfigByKey('download.intervalJitter') ?? 0;
+        const intervalMs = intervalSec * 1000;
+        const jitterMs = jitterSec > 0 ? jitterSec * 1000 : 0;
+
+        const now = Date.now();
+        // 本任务实际启动时刻：不早于 now，也不早于上一个预约的最早启动时间
+        const startAt = Math.max(now, this.nextAllowedStart);
+        // 预约下一个任务的最早启动时间（固定区间抖动）
+        const jitterOffset = jitterMs > 0 ? (Math.random() * 2 - 1) * jitterMs : 0;
+        this.nextAllowedStart = startAt + Math.max(0, intervalMs + jitterOffset);
+
+        const waitMs = startAt - now;
+        if (waitMs > 0) await delay(waitMs);
+    }
+
     private enqueueTask(task: IDownloadTask): void {
         // 捕获当前世代号，回调执行时比对——若不一致说明中间发生过 pause/remove
         const generation = this.taskGeneration.get(task.id) ?? 0;
@@ -411,6 +439,13 @@ class DownloadManager {
             // DB 新鲜度校验：防止快速 pause-resume 导致重复执行
             const freshRow = this.queries.getTaskById.get(task.id) as IDownloadTaskRow | undefined;
             if (!freshRow || freshRow.status !== 'pending') return;
+
+            // 启动间隔闸门：在获取媒体源之前等待到允许的启动时隙
+            await this.acquireLaunchSlot();
+
+            // 等待期间可能被 pause/remove/dispose
+            if ((this.taskGeneration.get(task.id) ?? 0) !== generation) return;
+            if (this.disposed) return;
 
             // 延迟获取媒体源：在任务真正开始执行时才获取，避免 resumeAll 过早批量请求
             let musicItem = safeParse<IMusic.IMusicItem>(task.musicItemRaw ?? '');
