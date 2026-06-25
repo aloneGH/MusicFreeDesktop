@@ -3,11 +3,12 @@
  *
  * 运行在 Electron UtilityProcess 中的 HTTP 代理服务器。
  * 接收带有 url/headers/method 查询参数的 GET 请求，
- * 转发到目标服务器并将响应 pipe 回客户端。
+ * 转发到目标服务器并将响应流式回传客户端。
  */
 
 import http from 'http';
 import https from 'https';
+import { pipeline } from 'stream';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { IWorkerMessage, IMainMessage } from '@appTypes/infra/requestForwarder';
@@ -16,12 +17,44 @@ import { safeParse } from '@common/safeSerialize';
 const DEFAULT_PORT = 52735;
 const MAX_PORT_RETRIES = 20;
 
+/**
+ * 逐跳（hop-by-hop）头：仅描述「单段连接」，由代理这一跳消费，
+ * 不能原样转发到另一段连接（RFC 7230 §6.1）。转发前必须剔除，
+ * 让下游连接自行决定其传输编码与连接管理，避免 chunked/Content-Length 冲突。
+ */
+const HOP_BY_HOP_HEADERS = new Set([
+    'connection',
+    'keep-alive',
+    'proxy-authenticate',
+    'proxy-authorization',
+    'te',
+    'trailer',
+    'transfer-encoding',
+    'upgrade',
+]);
+
+/** 上游空闲超时：源站接受连接后若该时长内无数据收发则回收（活跃流式会自动重置计时） */
+const UPSTREAM_IDLE_TIMEOUT_MS = 30_000;
+
 let retryCount = 0;
 let server: http.Server | null = null;
 
 /** 代理 Agent（由主进程通过 IPC 动态更新） */
 let httpAgent: HttpProxyAgent<string> | undefined;
 let httpsAgent: HttpsProxyAgent<string> | undefined;
+
+/** 剔除逐跳头，返回仅含端到端头的新对象（如 range/accept-encoding/content-* 均保留） */
+function stripHopByHopHeaders<T extends http.IncomingHttpHeaders | http.OutgoingHttpHeaders>(
+    headers: T,
+): T {
+    const result = {} as T;
+    for (const key of Object.keys(headers)) {
+        if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
+            (result as Record<string, unknown>)[key] = (headers as Record<string, unknown>)[key];
+        }
+    }
+    return result;
+}
 
 /** 将请求转发到目标服务器 */
 function forwardRequest(
@@ -48,7 +81,7 @@ function forwardRequest(
     const options: http.RequestOptions = {
         method,
         headers: {
-            ...(headers || {}),
+            ...stripHopByHopHeaders(headers || {}),
             host,
         },
     };
@@ -60,16 +93,37 @@ function forwardRequest(
     }
 
     const req = protocol.request(url, options, (targetRes) => {
-        clientRes.writeHead(targetRes.statusCode ?? 502, targetRes.headers);
-        targetRes.pipe(clientRes, { end: true });
+        clientRes.writeHead(targetRes.statusCode ?? 502, stripHopByHopHeaders(targetRes.headers));
+        // pipeline 自动传播两端错误并销毁两端，避免未处理的 stream error 导致 worker 崩溃
+        pipeline(targetRes, clientRes, (err) => {
+            if (err) {
+                console.error('[RequestForwarder Worker] Stream error:', err.message);
+            }
+        });
+    });
+
+    // 客户端断连（seek/切歌/缓冲中止）时中止上游请求，防止上游 socket 泄漏耗尽并发连接
+    clientRes.on('close', () => {
+        req.destroy();
+    });
+
+    // 上游空闲超时：源站接受连接却迟迟不返回数据时回收，防止挂起连接累积
+    req.setTimeout(UPSTREAM_IDLE_TIMEOUT_MS, () => {
+        if (!clientRes.headersSent && clientRes.writable) {
+            clientRes.writeHead(504, { 'Content-Type': 'text/plain' });
+            clientRes.end('Gateway Timeout');
+        }
+        req.destroy();
     });
 
     req.on('error', (error) => {
         console.error('[RequestForwarder Worker] Forward error:', error.message);
-        if (!clientRes.headersSent) {
+        if (!clientRes.headersSent && clientRes.writable) {
             clientRes.writeHead(502, { 'Content-Type': 'text/plain' });
+            clientRes.end('Bad Gateway');
+        } else if (clientRes.writable) {
+            clientRes.end();
         }
-        clientRes.end('Bad Gateway');
     });
 
     req.end();

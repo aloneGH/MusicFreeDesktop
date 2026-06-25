@@ -18,8 +18,8 @@ export interface IAudioControllerEvents {
     stateChange: (state: PlayerState) => void;
     /** 播放进度更新 */
     timeUpdate: (progress: { currentTime: number; duration: number }) => void;
-    /** 播放结束 */
-    ended: () => void;
+    /** 播放结束（携带结束瞬间的位置，供上层区分自然播完与流被截断） */
+    ended: (info: { currentTime: number; duration: number }) => void;
     /** 播放错误 */
     error: (reason: ErrorReason, detail?: any) => void;
     /** 音量变化 */
@@ -221,7 +221,10 @@ class WebAudioController extends EventEmitter<IAudioControllerEvents> implements
 
         this.audio.onended = () => {
             this.setPlayerState(PlayerState.Paused);
-            this.emit('ended');
+            this.emit('ended', {
+                currentTime: this.audio.currentTime,
+                duration: this.audio.duration,
+            });
         };
 
         this.audio.onvolumechange = () => {

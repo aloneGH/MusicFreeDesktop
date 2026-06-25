@@ -17,10 +17,18 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 - 下载设置新增「下载间隔」与「随机抖动」：可设置两次下载任务启动之间的最小间隔（秒），并在其基础上叠加随机浮动，默认关闭。
 - 引入 Issue / PR 治理工作流：长期无活动且未被接受的 Issue 会被自动标记 `stale` 并关闭；PR 必须提交到 `dev` 分支并关联一个已被接受的 Issue。
 
+### 修复
+
+- 修复部分在线音源（WebDAV 等需附加请求头的插件音源）播放时，歌曲未播完就跳到下一首、长时间播放后卡死或无限跳歌的问题。
+
 ### Added
 
 - Add "Download interval" and "Random jitter" download settings: configure the minimum interval (seconds) between starting two download tasks, with an optional random variation on top. Disabled by default.
 - Add issue/PR governance workflows: inactive and unaccepted issues are automatically marked `stale` and closed; PRs must target the `dev` branch and link an accepted issue.
+
+### Fixed
+
+- Fix some streamed online sources (WebDAV and other plugin sources requiring custom request headers) skipping to the next track before finishing, and hanging or skipping endlessly after long playback sessions.
 
 ---
 

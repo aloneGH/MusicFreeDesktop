@@ -22,7 +22,7 @@ import { REPEAT_MODE_MAP } from '@renderer/common/repeatModeMap';
 import { type IAudioController, createAudioController } from './audioController';
 import PlayQueue from './playQueue';
 import LyricManager from './lyricManager';
-import type { IPlayOptions } from './types';
+import type { IPlayOptions, IResolveSourceOptions } from './types';
 import {
     store,
     currentMusicAtom,
@@ -116,6 +116,14 @@ class TrackPlayer {
     private consecutiveErrors = 0;
     private readonly MAX_CONSECUTIVE_ERRORS = 3;
 
+    // 流截断续播：区分「真播完」与「流被截断」，截断时从断点续播
+    private truncationRetries = 0;
+    private lastTruncationTime = 0;
+    /** 判定截断的容差（秒）：currentTime 距 duration 超过此值视为异常截断 */
+    private readonly TRUNCATION_TOLERANCE = 2;
+    /** 同一断点反复截断的最大续播次数，超过则放弃续播交给错误处理 */
+    private readonly MAX_TRUNCATION_RETRIES = 3;
+
     // ─── 启动恢复 ───
 
     async setup(): Promise<void> {
@@ -160,17 +168,8 @@ class TrackPlayer {
             const musicItem = fullItem ?? savedMusic;
 
             try {
-                // 优先使用已下载的本地文件
-                const localSource = await this.tryLocalSource(musicItem);
-                const result =
-                    localSource ??
-                    (await pluginManager.adapters.getMediaSource({
-                        hash: pluginManager.getPluginByPlatform(musicItem.platform)?.hash ?? '',
-                        musicItem,
-                        quality: validQuality,
-                        qualityOrder: QUALITY_KEYS,
-                        qualityFallbackOrder: this.getQualityFallbackOrder(),
-                    }));
+                // 优先使用已下载的本地文件，否则调用插件获取
+                const result = await this.resolveSource(musicItem, validQuality);
 
                 if (result?.url && this.isCurrentMusic(savedMusic)) {
                     this.audioController.setTrackSource(result, musicItem);
@@ -274,16 +273,7 @@ class TrackPlayer {
 
             // 获取音源：优先使用已下载的本地文件
             const quality = store.get(qualityAtom);
-            const localSource = await this.tryLocalSource(musicItem);
-            const result =
-                localSource ??
-                (await pluginManager.adapters.getMediaSource({
-                    hash: pluginManager.getPluginByPlatform(musicItem.platform)?.hash ?? '',
-                    musicItem,
-                    quality,
-                    qualityOrder: QUALITY_KEYS,
-                    qualityFallbackOrder: this.getQualityFallbackOrder(),
-                }));
+            const result = await this.resolveSource(musicItem, quality);
 
             if (!result?.url) throw new Error('No media source');
             if (!this.isCurrentMusic(targetSlim)) return; // 切歌了
@@ -320,7 +310,7 @@ class TrackPlayer {
                 .catch(() => {});
         } catch (e) {
             this.audioController.reset();
-            this.handlePlayError(targetSlim, e);
+            await this.handlePlayError(targetSlim, e);
         }
     }
 
@@ -465,16 +455,9 @@ class TrackPlayer {
             const musicItem = fullItem ?? (current as IMusic.IMusicItem);
 
             // 切换音质：仅在音质匹配时使用本地文件
-            const localSource = await this.tryLocalSource(musicItem, quality);
-            const result =
-                localSource ??
-                (await pluginManager.adapters.getMediaSource({
-                    hash: pluginManager.getPluginByPlatform(musicItem.platform)?.hash ?? '',
-                    musicItem,
-                    quality,
-                    qualityOrder: QUALITY_KEYS,
-                    qualityFallbackOrder: this.getQualityFallbackOrder(),
-                }));
+            const result = await this.resolveSource(musicItem, quality, {
+                requireQualityMatch: true,
+            });
 
             if (result?.url && this.isCurrentMusic(current)) {
                 this.audioController.setTrackSource(result, musicItem);
@@ -558,17 +541,38 @@ class TrackPlayer {
             }
         });
 
-        this.audioController.on('ended', async () => {
-            this.resetProgress();
-            const repeatMode = store.get(repeatModeAtom);
-            if (repeatMode === RepeatMode.Loop) {
-                // 自然播完 + 单曲循环 → 重播
-                await this.playIndex(this.playQueue.getCurrentIndex(), {
-                    restartOnSameMedia: true,
-                });
-            } else {
-                // 自然播完 → 下一首（不用 skipToNext，因为它是手动操作语义）
-                await this.playIndex(this.playQueue.getNextIndex());
+        this.audioController.on('ended', async ({ currentTime, duration }) => {
+            try {
+                // duration 有限且 currentTime 距结尾超过容差 → 流被截断（非自然播完）
+                const isTruncated =
+                    isFinite(duration) && duration - currentTime > this.TRUNCATION_TOLERANCE;
+
+                if (!isTruncated) {
+                    // 自然播完
+                    await this.advanceAfterCompletion();
+                    return;
+                }
+
+                // 异常截断：以「断点是否前进」区分网络抖动与死源
+                // 断点较上次前进超过 1s = 抖动（续播在推进，重置计数继续续播）；
+                // 原地踏步或后退 = 死源（同一位置反复断，累加计数直至放弃）
+                if (currentTime > this.lastTruncationTime + 1) {
+                    this.truncationRetries = 0;
+                } else {
+                    this.truncationRetries++;
+                }
+                this.lastTruncationTime = currentTime;
+
+                if (this.truncationRetries >= this.MAX_TRUNCATION_RETRIES) {
+                    // 无法从该断点继续：可能是死源，也可能是 VBR / 元数据时长虚高导致的「实际已播完」。
+                    // 仅凭 duration 无法区分二者，故偏向按「自然播完」前进，保证播放永不卡死；
+                    // 代价是极少数确实中途失效的源会前进到下一首而非暂停。
+                    await this.advanceAfterCompletion();
+                } else {
+                    await this.resumeFromTruncation(currentTime);
+                }
+            } catch (e) {
+                console.error('[TrackPlayer] ended 处理异常:', e);
             }
         });
 
@@ -649,10 +653,59 @@ class TrackPlayer {
     }
 
     /**
+     * 一首播放完毕后前进：单曲循环重播，否则播放下一首。
+     * 同时作为流截断无法续播时的安全归宿，保证播放始终向前推进。
+     */
+    private async advanceAfterCompletion(): Promise<void> {
+        this.truncationRetries = 0;
+        this.resetProgress();
+        const repeatMode = store.get(repeatModeAtom);
+        if (repeatMode === RepeatMode.Loop) {
+            // 单曲循环 → 重播
+            await this.playIndex(this.playQueue.getCurrentIndex(), {
+                restartOnSameMedia: true,
+            });
+        } else {
+            // 前进到下一首（不用 skipToNext，因为它是手动操作语义）
+            await this.playIndex(this.playQueue.getNextIndex());
+        }
+    }
+
+    /**
+     * 流被截断时从断点续播：重新拉源（避免签名 URL 过期）并 seek 回截断位置。
+     * 复用切换音质的原地换源范式，不调 setCurrentMusic（歌曲未变）。
+     */
+    private async resumeFromTruncation(seekTime: number): Promise<void> {
+        const target = this.playQueue.getCurrentMusic();
+        if (!target) return;
+
+        store.set(playerStateAtom, PlayerState.Buffering);
+        try {
+            const fullItem = await musicSheet.getRawMusicItem(target.platform, target.id);
+            const musicItem = fullItem ?? (target as IMusic.IMusicItem);
+            const result = await this.resolveSource(musicItem, store.get(qualityAtom));
+
+            if (!result?.url) throw new Error('No media source');
+            if (!this.isCurrentMusic(target)) return; // 续播期间被切歌，放弃
+
+            this.audioController.setTrackSource(result, musicItem);
+            this.audioController.seekTo(seekTime);
+            this.audioController.play();
+        } catch (e) {
+            await this.handlePlayError(target, e);
+        }
+    }
+
+    /**
      * 确认当前播放歌曲——更新 atom、持久化、加载歌词。
      * @param fetchLyric 默认 true；元数据更新时传 false 避免重复加载
      */
     private setCurrentMusic(musicItem: IMusic.IMusicItem, fetchLyric = true): void {
+        // 切到不同歌曲时重置截断续播状态，避免跨歌曲污染（同歌的元数据更新不触发）
+        if (!isSameMedia(store.get(currentMusicAtom), musicItem)) {
+            this.truncationRetries = 0;
+            this.lastTruncationTime = 0;
+        }
         store.set(currentMusicAtom, musicItemToSlim(musicItem));
         syncKV.set('player.currentMusic', musicItem);
         if (fetchLyric) {
@@ -713,6 +766,30 @@ class TrackPlayer {
     private getQualityFallbackOrder(): 'higher' | 'lower' {
         const config = appConfig.getConfigByKey('playMusic.whenQualityMissing');
         return config === 'higher' ? 'higher' : 'lower';
+    }
+
+    /**
+     * 解析音源：优先使用已下载的本地文件，否则调用插件获取。
+     */
+    private async resolveSource(
+        musicItem: IMusic.IMusicItem,
+        quality: IMusic.IQualityKey,
+        opts?: IResolveSourceOptions,
+    ): Promise<IPlugin.IMediaSourceResult | null> {
+        const localSource = await this.tryLocalSource(
+            musicItem,
+            opts?.requireQualityMatch ? quality : undefined,
+        );
+        return (
+            localSource ??
+            (await pluginManager.adapters.getMediaSource({
+                hash: pluginManager.getPluginByPlatform(musicItem.platform)?.hash ?? '',
+                musicItem,
+                quality,
+                qualityOrder: QUALITY_KEYS,
+                qualityFallbackOrder: this.getQualityFallbackOrder(),
+            }))
+        );
     }
 }
 
