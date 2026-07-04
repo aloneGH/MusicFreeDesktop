@@ -42,6 +42,8 @@ export interface IAudioController {
     // 销毁audio实例
     destroy(): void;
 
+    getAnalyserNode?(): AnalyserNode;
+
     onPlayerStateChanged?: (playerState: PlayerState) => void;
     // 进度更新
     onProgressUpdate?: (progress: CurrentTime) => void;

@@ -70,6 +70,7 @@ app.on("activate", () => {
 });
 
 if (!app.requestSingleInstanceLock()) {
+    console.log("Single instance lock failed. Another instance is likely running. Exiting.");
     app.exit(0);
 }
 

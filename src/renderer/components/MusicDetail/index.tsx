@@ -38,9 +38,10 @@ function MusicDetail() {
     return (
         <AnimatedDiv
             showIf={musicDetailShown}
-            className="music-detail--container animate__animated background-color"
+            className="music-detail--container animate__animated"
             mountClassName="animate__slideInUp"
             unmountClassName="animate__slideOutDown"
+            style={{ pointerEvents: musicDetailShown ? "auto" : "none" }} // Conditionally set pointer-events
             onAnimationEnd={() => {
                 // hack logic: https://github.com/electron/electron/issues/32341
                 // force reflow to refresh drag region

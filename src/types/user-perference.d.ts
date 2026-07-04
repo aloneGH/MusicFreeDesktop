@@ -19,6 +19,8 @@ declare namespace IUserPreference {
     inlineLyricFontSize: string;
     /** 展示翻译 */
     showTranslation: boolean;
+    /** 是否开启频谱 */
+    showSpectrum: boolean;
   }
 
   interface IDBType {

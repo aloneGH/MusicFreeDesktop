@@ -1,3 +1,8 @@
+html,
+body {
+  background-color: transparent !important;
+}
+
 .app-container {
   width: 100vw;
   height: 100vh;
@@ -5,6 +10,7 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  background-color: transparent;
 
   & .body-container {
     width: 100%;
@@ -12,6 +18,7 @@
     flex: 1;
     display: flex;
     position: relative;
+    background-color: transparent;
   }
 }
 

@@ -19,6 +19,9 @@ import Promise = Dexie.Promise;
 class AudioController extends ControllerBase implements IAudioController {
     private audio: HTMLAudioElement;
     private hls: Hls;
+    private audioContext: AudioContext;
+    private analyser: AnalyserNode;
+    private source: MediaElementAudioSourceNode;
 
     private _playerState: PlayerState = PlayerState.None;
     get playerState() {
@@ -41,6 +44,7 @@ class AudioController extends ControllerBase implements IAudioController {
     constructor() {
         super();
         this.audio = new Audio();
+        this.audio.crossOrigin = "anonymous";
         this.audio.preload = "auto";
         this.audio.controls = false;
 
@@ -92,6 +96,12 @@ class AudioController extends ControllerBase implements IAudioController {
 
         // @ts-ignore  isDev
         window.ad = this.audio;
+
+        this.audioContext = new AudioContext();
+        this.source = this.audioContext.createMediaElementSource(this.audio);
+        this.analyser = this.audioContext.createAnalyser();
+        this.source.connect(this.analyser);
+        this.analyser.connect(this.audioContext.destination);
     }
 
     private initHls(config?: Partial<HlsConfig>) {
@@ -125,9 +135,16 @@ class AudioController extends ControllerBase implements IAudioController {
     }
 
     play(): void {
+        if (this.audioContext.state === "suspended") {
+            this.audioContext.resume();
+        }
         if (this.hasSource) {
             this.audio.play().catch(voidCallback);
         }
+    }
+
+    getAnalyserNode(): AnalyserNode {
+        return this.analyser;
     }
 
     reset(): void {

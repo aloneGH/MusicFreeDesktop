@@ -52,6 +52,7 @@ interface InternalPlayerEvents {
     [PlayerEvents.Error]: (errorMusicItem: IMusic.IMusicItem | null, reason: any) => void;
     [PlayerEvents.ProgressChanged]: (progress: CurrentTime) => void;
     [PlayerEvents.StateChanged]: (state: PlayerState) => void;
+    [PlayerEvents.ControllerReady]: (controller: IAudioController) => void;
 }
 
 interface IPlayOptions {
@@ -129,7 +130,7 @@ class TrackPlayer {
 
     private currentIndex = -1;
 
-    private audioController: IAudioController;
+    public audioController: IAudioController;
 
     private ee: EventEmitter<InternalPlayerEvents>;
 
@@ -141,6 +142,10 @@ class TrackPlayer {
 
     on<T extends keyof InternalPlayerEvents>(event: T, callback: InternalPlayerEvents[T]) {
         this.ee.on(event, callback as any);
+    }
+
+    off<T extends keyof InternalPlayerEvents>(event: T, callback: InternalPlayerEvents[T]) {
+        this.ee.off(event, callback as any);
     }
 
     private setupEvents() {
@@ -221,6 +226,7 @@ class TrackPlayer {
 
 
         this.audioController = audioController;
+        this.ee.emit(PlayerEvents.ControllerReady, this.audioController);
     }
 
     public async setup() {

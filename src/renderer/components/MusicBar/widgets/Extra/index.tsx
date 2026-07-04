@@ -16,6 +16,7 @@ import { RepeatMode } from "@/common/constant";
 import { useQuality, useRepeatMode, useSpeed, useVolume } from "@renderer/core/track-player/hooks";
 import { appWindowUtil } from "@shared/utils/renderer";
 import { musicDetailShownStore } from "@renderer/components/MusicDetail/store";
+import { useUserPreference } from "@/renderer/utils/user-perference";
 
 export default function Extra() {
     const repeatMode = useRepeatMode();
@@ -26,6 +27,7 @@ export default function Extra() {
             <QualityBtn></QualityBtn>
             <SpeedBtn></SpeedBtn>
             <VolumeBtn></VolumeBtn>
+            <SpectrumBtn></SpectrumBtn>
             <LyricBtn></LyricBtn>
             <div
                 className="extra-btn"
@@ -301,6 +303,30 @@ function LyricBtn() {
             <SvgAsset
                 iconName={isCN() ? "lyric" : "lyric-en"}
                 title={t("music_bar.desktop_lyric")}
+            ></SvgAsset>
+        </div>
+    );
+}
+
+function SpectrumBtn() {
+    const [showSpectrum, setShowSpectrum] = useUserPreference("showSpectrum");
+    const isEnabled = showSpectrum !== false; // default to true
+    const { t } = useTranslation();
+
+    return (
+        <div
+            className={classNames({
+                "extra-btn": true,
+                highlight: isEnabled,
+            })}
+            role="button"
+            onClick={() => {
+                setShowSpectrum(!isEnabled);
+            }}
+        >
+            <SvgAsset
+                iconName="sparkles"
+                title={t("music_bar.audio_spectrum")}
             ></SvgAsset>
         </div>
     );

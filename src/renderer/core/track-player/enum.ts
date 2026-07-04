@@ -35,6 +35,8 @@ export enum PlayerEvents {
     CurrentLyricChanged = "current-lyric-changed",
     /** 整体歌词改变 */
     LyricChanged = "lyric-changed",
+    /** AudioController 就绪 */
+    ControllerReady = "controller-ready",
 }
 
 
