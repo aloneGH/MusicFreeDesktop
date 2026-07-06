@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import "./style.scss";
+import { usePlayerState } from "@renderer/core/track-player/hooks";
+import { PlayerState } from "@/common/constant";
 
 interface SpectrumVisualizerProps {
     analyserNode: AnalyserNode;
@@ -15,6 +17,7 @@ const limitHeight = (h: number, limit: number) => {
 
 const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const playerState = usePlayerState();
 
     useEffect(() => {
         if (!analyserNode) return;
@@ -25,8 +28,20 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
         const canvasCtx = canvas.getContext("2d");
         if (!canvasCtx) return;
 
-        // Retina Display high-DPI crispness scaling
-        const dpr = window.devicePixelRatio || 1;
+        // If music is paused or stopped, clear the canvas and immediately exit to avoid CPU consumption!
+        if (playerState !== PlayerState.Playing) {
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+
+        // Define layout dimensions in the outer scope to avoid querying window size in every animation frame
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        let baselineY = height - 64;
+        if (!canvasCtx) return;
+
+        // Retina Display scaling (capped at 1.0 for visualizer to maximize rendering performance)
+        const dpr = 1.0;
         canvas.width = window.innerWidth * dpr;
         canvas.height = window.innerHeight * dpr;
         canvasCtx.scale(dpr, dpr);
@@ -64,6 +79,24 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
         const dataArray = new Uint8Array(bufferLength);
         const smoothedValues = new Float32Array(bufferLength);
 
+        // Precompute log mapping lookup table to avoid expensive Math.pow/Math.floor calls at 60fps
+        const minBin = 1;
+        const maxBin = Math.max(minBin + 1, Math.floor(bufferLength * 0.85));
+        const sampleStep = 8;
+        const logLookupTable: Array<{ lowIndex: number; highIndex: number; frac: number }> = [];
+        
+        for (let i = 0; i < bufferLength; i += sampleStep) {
+            const currentT = i / (bufferLength - 1);
+            const logIndex = minBin * Math.pow(maxBin / minBin, currentT);
+            const lowIndex = Math.floor(logIndex);
+            const highIndex = Math.min(bufferLength - 1, Math.ceil(logIndex));
+            const frac = logIndex - lowIndex;
+            logLookupTable.push({ lowIndex, highIndex, frac });
+        }
+
+        // Reusable DOMMatrix to prevent garbage collection GC pressure at 60fps
+        const noiseMatrix = typeof DOMMatrix !== "undefined" ? new DOMMatrix() : null;
+
         // Wave, beat, and rhythm variables
         let phase1 = 0; // Phase tracker for Wave 1 (Sub-bass driven)
         let phase2 = 0; // Phase tracker for Wave 2 (Midrange driven)
@@ -83,8 +116,17 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
 
 
         let animationFrameId: number;
+        let lastFrameTime = 0;
+        const fpsInterval = 1000 / 60; // Throttle rendering loop to 60 FPS maximum (crucial for 120Hz/ProMotion Mac screens)
 
-        const draw = () => {
+        const draw = (timestamp: number) => {
+            const elapsed = timestamp - lastFrameTime;
+            if (elapsed < fpsInterval) {
+                animationFrameId = requestAnimationFrame(draw);
+                return;
+            }
+            lastFrameTime = timestamp - (elapsed % fpsInterval);
+
             analyserNode.getByteFrequencyData(dataArray);
 
             // Loop Fusion: Track maximum amplitude and apply asymmetric temporal smoothing in a single pass to save L1 cache/CPU bounds
@@ -129,11 +171,6 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             }
             maxVolumeTracked = Math.max(0.15, Math.min(1.0, maxVolumeTracked));
 
-            // Define logical drawing dimensions to support DPI scaling
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            const baselineY = height - 64; // Shift baseline up to stay above the play control bar
-
             canvasCtx.clearRect(0, 0, width, height);
 
             // Draw ambient room glow that breathes/pulses with volume and beat
@@ -153,20 +190,7 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 canvasCtx.arc(width / 2, baselineY, glowRadius, 0, Math.PI * 2);
                 canvasCtx.fill();
 
-                // Apply dynamic dither noise overlay to eliminate radial gradient banding
-                if (noisePattern) {
-                    canvasCtx.save();
-                    canvasCtx.globalCompositeOperation = "source-atop";
-                    const matrix = typeof DOMMatrix !== "undefined"
-                        ? new DOMMatrix().translate(Math.floor(Math.random() * 64), Math.floor(Math.random() * 64))
-                        : null;
-                    if (matrix && noisePattern.setTransform) {
-                        noisePattern.setTransform(matrix);
-                    }
-                    canvasCtx.fillStyle = noisePattern;
-                    canvasCtx.fill();
-                    canvasCtx.restore();
-                }
+                // Noise pattern drawing removed here; applied once at the end of the frame for high performance
             };
             drawAmbientGlow();
 
@@ -293,10 +317,11 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
 
             const drawVocalWave = (vocalX: number, vocalAmp: number, opacityMultiplier: number, colorOffset: number, strokeWidth: number, bellWidth: number, heightScale: number, vocalPhase: number) => {
                 canvasCtx.beginPath();
-                const step = width / (bufferLength - 1);
-                const stepT = 1 / (bufferLength - 1);
-                const stepVib1 = 35 / (bufferLength - 1);
-                const stepVib2 = 85 / (bufferLength - 1);
+                const sampleStep = 8;
+                const step = (width / (bufferLength - 1)) * sampleStep;
+                const stepT = (1 / (bufferLength - 1)) * sampleStep;
+                const stepVib1 = (35 / (bufferLength - 1)) * sampleStep;
+                const stepVib2 = (85 / (bufferLength - 1)) * sampleStep;
 
                 let prevX = 0;
                 let prevY = baselineY;
@@ -306,7 +331,7 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 let argVib1 = vocalPhase * 3.0;
                 let argVib2 = -vocalPhase * 5.0;
 
-                for (let i = 0; i < bufferLength; i++) {
+                for (let i = 0; i < bufferLength; i += sampleStep) {
                     const dist = currentT - vocalX;
                     const vocalBell = Math.exp(-(dist * dist) / (2 * bellWidth * bellWidth));
                     
@@ -341,19 +366,22 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 const vocalLightness = 65 + smoothedVolume * 15; // 65% to 80% (extra bright glow on vocals)
                 const strokeOpacity = Math.min(1.0, vocalAmp * 1.5) * opacityMultiplier;
 
-                // For the main white core (pure glowing white), add shadow blur; for color aura background, draw neon outline
+                // Replace CPU-heavy shadowBlur with high-performance double-stroke hardware-accelerated neon glow simulation
                 if (opacityMultiplier > 0.8) {
+                    // 1. Draw colored outer glow aura
+                    canvasCtx.strokeStyle = `hsla(${(baseHue + colorOffset) % 360}, 100%, ${vocalLightness}%, ${strokeOpacity * 0.45})`;
+                    canvasCtx.lineWidth = strokeWidth + 6;
+                    canvasCtx.stroke();
+
+                    // 2. Draw white inner core
                     canvasCtx.strokeStyle = `rgba(255, 255, 255, ${strokeOpacity})`;
-                    // Dynamic glow bloom: shadow blur pulses dynamically (from 10px to 28px) with vocal amplitude
-                    canvasCtx.shadowBlur = 10 + vocalAmp * 18; 
-                    canvasCtx.shadowColor = `hsla(${(baseHue + colorOffset) % 360}, 100%, ${vocalLightness}%, 0.8)`;
+                    canvasCtx.lineWidth = strokeWidth;
+                    canvasCtx.stroke();
                 } else {
                     canvasCtx.strokeStyle = `hsla(${(baseHue + colorOffset) % 360}, 100%, 75%, ${strokeOpacity})`;
+                    canvasCtx.lineWidth = strokeWidth;
+                    canvasCtx.stroke();
                 }
-                
-                canvasCtx.lineWidth = strokeWidth;
-                canvasCtx.stroke();
-                canvasCtx.shadowBlur = 0;
 
                 // Close path for fill
                 canvasCtx.lineTo(width, baselineY);
@@ -372,31 +400,13 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 gradient.addColorStop(1, `hsla(${(baseHue + colorOffset) % 360}, 100%, ${vocalLightness - 10}%, ${targetOpacity})`);
                 canvasCtx.fillStyle = gradient;
                 canvasCtx.fill();
-
-                // Apply dynamic dither noise overlay to eliminate gradient banding
-                if (noisePattern) {
-                    canvasCtx.save();
-                    canvasCtx.globalCompositeOperation = "source-atop";
-                    const matrix = typeof DOMMatrix !== "undefined"
-                        ? new DOMMatrix().translate(Math.floor(Math.random() * 64), Math.floor(Math.random() * 64))
-                        : null;
-                    if (matrix && noisePattern.setTransform) {
-                        noisePattern.setTransform(matrix);
-                    }
-                    canvasCtx.fillStyle = noisePattern;
-                    canvasCtx.fill();
-                    canvasCtx.restore();
-                }
             };
             const drawWave = (offsetPhase: number, opacity: number, colorHue: number, heightMultiplier: number, wavePhase: number) => {
                 canvasCtx.beginPath();
-                const step = width / (bufferLength - 1);
-                const stepT = 1 / (bufferLength - 1);
+                const sampleStep = 8;
+                const step = (width / (bufferLength - 1)) * sampleStep;
+                const stepT = (1 / (bufferLength - 1)) * sampleStep;
                 
-                // Logarithmic frequency mapping parameters to distribute bass/mid/high energy evenly
-                const minBin = 1;
-                const maxBin = Math.max(minBin + 1, Math.floor(bufferLength * 0.85));
-
                 let prevX = 0;
                 let prevY = baselineY;
 
@@ -405,17 +415,13 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 let argWave1 = wavePhase + offsetPhase;
                 let argWave2 = -wavePhase * 1.5 + offsetPhase;
                 let argWave3 = wavePhase * 4.0 - offsetPhase;
-                const stepWave1 = waveDensity;
-                const stepWave2 = waveDensity * 2.5;
-                const stepWave3 = waveDensity * 6.0;
+                const stepWave1 = waveDensity * sampleStep;
+                const stepWave2 = waveDensity * 2.5 * sampleStep;
+                const stepWave3 = waveDensity * 6.0 * sampleStep;
 
-                for (let i = 0; i < bufferLength; i++) {
-                    const logIndex = minBin * Math.pow(maxBin / minBin, currentT);
-
-                    // Interpolate adjacent frequency bins to ensure smooth transition
-                    const lowIndex = Math.floor(logIndex);
-                    const highIndex = Math.min(bufferLength - 1, Math.ceil(logIndex));
-                    const frac = logIndex - lowIndex;
+                let lookupIdx = 0;
+                for (let i = 0; i < bufferLength; i += sampleStep) {
+                    const { lowIndex, highIndex, frac } = logLookupTable[lookupIdx++];
                     const rawVal = smoothedValues[lowIndex] * (1 - frac) + smoothedValues[highIndex] * frac;
 
                     // Auto-gain normalized amplitude value
@@ -480,21 +486,6 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 gradient.addColorStop(1, `hsla(${colorHue}, 100%, ${fillLightness}%, ${opacity})`);
                 canvasCtx.fillStyle = gradient;
                 canvasCtx.fill();
-
-                // Apply dynamic dither noise overlay to eliminate gradient banding
-                if (noisePattern) {
-                    canvasCtx.save();
-                    canvasCtx.globalCompositeOperation = "source-atop";
-                    const matrix = typeof DOMMatrix !== "undefined"
-                        ? new DOMMatrix().translate(Math.floor(Math.random() * 64), Math.floor(Math.random() * 64))
-                        : null;
-                    if (matrix && noisePattern.setTransform) {
-                        noisePattern.setTransform(matrix);
-                    }
-                    canvasCtx.fillStyle = noisePattern;
-                    canvasCtx.fill();
-                    canvasCtx.restore();
-                }
             };
 
             // Draw 3 layers of overlapping waves with decoupled frequency band phases
@@ -509,6 +500,19 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             // Draw dedicated main vocal melody line on top (Vocal driven, 0ms lag, white glow, colorOffset 180, sharp core)
             drawVocalWave(smoothedVocalX, smoothedVocalAmp, 1.0, 180, 4.0, 0.16, 1.05, phaseVocal);
 
+            // Apply dynamic dither noise overlay ONCE over the entire drawn area of the frame to eliminate gradient banding
+            if (noisePattern) {
+                canvasCtx.save();
+                canvasCtx.globalCompositeOperation = "source-atop";
+                if (noiseMatrix && noisePattern.setTransform) {
+                    noiseMatrix.e = Math.floor(Math.random() * 64);
+                    noiseMatrix.f = Math.floor(Math.random() * 64);
+                    noisePattern.setTransform(noiseMatrix);
+                }
+                canvasCtx.fillStyle = noisePattern;
+                canvasCtx.fillRect(0, 0, width, height);
+                canvasCtx.restore();
+            }
 
             // Schedule the next frame for active 60fps rendering
             animationFrameId = requestAnimationFrame(draw);
@@ -527,6 +531,7 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             if (frameMax >= 2) {
                 // Wake up! Sound detected, resume 60fps rendering
                 silentFramesCount = 0;
+                lastFrameTime = performance.now();
                 animationFrameId = requestAnimationFrame(draw);
             } else {
                 // Keep sleeping, poll again in 250ms
@@ -542,16 +547,19 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
         };
 
         // Initialize animation loop
-        draw();
+        draw(performance.now());
 
         // Throttled resize handler to prevent lagging/reflow spikes during window resize
         let resizeAnimationFrameId: number | null = null;
         const handleResize = () => {
             if (resizeAnimationFrameId !== null) return;
             resizeAnimationFrameId = window.requestAnimationFrame(() => {
-                const currentDpr = window.devicePixelRatio || 1;
-                canvas.width = window.innerWidth * currentDpr;
-                canvas.height = window.innerHeight * currentDpr;
+                const currentDpr = 1.0;
+                width = window.innerWidth;
+                height = window.innerHeight;
+                baselineY = height - 64;
+                canvas.width = width * currentDpr;
+                canvas.height = height * currentDpr;
                 canvasCtx.scale(currentDpr, currentDpr);
                 resizeAnimationFrameId = null;
             });
@@ -589,7 +597,7 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             analyserNode.fftSize = originalFftSize;
             analyserNode.smoothingTimeConstant = originalSmoothing;
         };
-    }, [analyserNode]);
+    }, [analyserNode, playerState]);
 
     return <canvas ref={canvasRef} className="spectrum-visualizer" />;
 };

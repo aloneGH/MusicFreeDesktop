@@ -31,7 +31,7 @@ export default function Lyric() {
     );
 
     const [showTranslation, setShowTranslation] =
-    useUserPreference("showTranslation");
+        useUserPreference("showTranslation");
     const { t } = useTranslation();
 
     const mountRef = useRef(false);
@@ -45,7 +45,7 @@ export default function Lyric() {
           | undefined;
                 if (dom) {
                     const offsetTop =
-            dom.offsetTop -
+                        dom.offsetTop -
             containerRef.current.clientHeight / 2 +
             dom.clientHeight / 2;
                     containerRef.current.scrollTo({
@@ -176,7 +176,7 @@ function LyricContextMenu(props: ILyricContextMenuProps) {
         getUserPreference("inlineLyricFontSize") ?? "13",
     );
     const [showTranslation, setShowTranslation] =
-    useUserPreference("showTranslation");
+        useUserPreference("showTranslation");
 
     const [linkedLyricInfo, setLinkedLyricInfo] = useState<IMedia.IUnique>(null);
 

@@ -1,3 +1,4 @@
+import "./polyfill";
 import { app, BrowserWindow, globalShortcut } from "electron";
 import fs from "fs";
 import path from "path";

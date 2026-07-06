@@ -21,9 +21,9 @@ interface ISearchResultProps {
 export default function SearchResult(props: ISearchResultProps) {
     const { type, plugins, query } = props;
     const [selectedPlugin, setSelectedPlugin] =
-    useState<IPlugin.IPluginDelegate | null>(
-        history.state?.usr?.plugin ?? null,
-    );
+        useState<IPlugin.IPluginDelegate | null>(
+            history.state?.usr?.plugin ?? null,
+        );
 
     useEffect(() => {
         if (plugins.length && !selectedPlugin) {

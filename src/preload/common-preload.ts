@@ -12,3 +12,4 @@ import "@shared/window-drag/preload";
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 contextBridge.exposeInMainWorld("path", path);
+contextBridge.exposeInMainWorld("__dirname", "");

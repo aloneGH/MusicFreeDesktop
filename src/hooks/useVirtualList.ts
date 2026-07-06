@@ -58,7 +58,7 @@ export default function useVirtualList<T>(props: IVirtualListProps<T>) {
         throttle(
             () => {
                 const scrollTop =
-          (scrollElementRef.current?.scrollTop ?? 0) -
+                    (scrollElementRef.current?.scrollTop ?? 0) -
           (typeof offsetHeight === "number" ? offsetHeight : offsetHeight());
                 const realData = dataRef.current;
                 const estimizeStartIndex = Math.floor(scrollTop / estimateItemHeight);

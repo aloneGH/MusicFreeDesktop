@@ -17,7 +17,7 @@ export default function AlbumView() {
     }, [params?.platform, params?.id]);
 
     const [requestState, albumItem, musicList, getAlbumDetail] =
-    useAlbumDetail(originalAlbumItem);
+        useAlbumDetail(originalAlbumItem);
 
     return (
         <div id="page-container" className="page-container">

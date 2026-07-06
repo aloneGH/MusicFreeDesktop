@@ -92,16 +92,16 @@ export const shortCutKeys: IShortCutKeys[] = [
 
 // 快捷键列表对应的指令
 export const shortCutKeysCommands: Record<IShortCutKeys, keyof ICommand> =
-{
-    "play/pause": "TogglePlayerState",
-    "skip-next": "SkipToNext",
-    "skip-previous": "SkipToPrevious",
-    "volume-down": "VolumeDown",
-    "volume-up": "VolumeUp",
-    "toggle-desktop-lyric": "ToggleDesktopLyric",
-    "like/dislike": "ToggleFavorite",
-    "toggle-main-window-visible": "ToggleMainWindowVisible",
-};
+    {
+        "play/pause": "TogglePlayerState",
+        "skip-next": "SkipToNext",
+        "skip-previous": "SkipToPrevious",
+        "volume-down": "VolumeDown",
+        "volume-up": "VolumeUp",
+        "toggle-desktop-lyric": "ToggleDesktopLyric",
+        "like/dislike": "ToggleFavorite",
+        "toggle-main-window-visible": "ToggleMainWindowVisible",
+    };
 
 // 主进程的Resource
 export enum ResourceName {

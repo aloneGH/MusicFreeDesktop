@@ -10,12 +10,12 @@ export default function LocalSheet() {
     const { t } = useTranslation();
 
     const _musicSheet =
-    id === defaultSheet.id
-        ? {
-            ...musicSheet,
-            title: t("media.default_favorite_sheet_name"),
-        }
-        : musicSheet;
+        id === defaultSheet.id
+            ? {
+                ...musicSheet,
+                title: t("media.default_favorite_sheet_name"),
+            }
+            : musicSheet;
 
     return (
         <MusicSheetlikeView

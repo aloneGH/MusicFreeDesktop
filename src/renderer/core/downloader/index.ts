@@ -42,7 +42,7 @@ interface IDownloaderWorker {
     downloadFile: (
         mediaSource: IMusic.IMusicSource,
         filePath: string,
-        onStateChange: ProxyMarkedFunction<IOnStateChangeFunc>
+        onStateChange: ProxyMarkedFunction<IOnStateChangeFunc>,
     ) => Promise<void>;
 }
 
@@ -159,7 +159,7 @@ async function downloadMusicImpl(
         if (mediaSource?.url) {
             const ext = mediaSource.url.match(/.*\/.+\.([^./?#]+)/)?.[1] ?? "mp3";
             const downloadBasePath =
-        AppConfig.getConfig("download.path") ??
+                AppConfig.getConfig("download.path") ??
         getGlobalContext().appPath.downloads;
             const downloadPath = window.path.resolve(
                 downloadBasePath,

@@ -15,10 +15,10 @@ interface ILocalFileWatcherWorker {
     onAdd: (
         cb: ProxyMarkedFunction<
             (musicItems: Array<IMusicItemWithLocalPath>) => Promise<void>
-        >
+        >,
     ) => void;
     onRemove: (
-        cb: ProxyMarkedFunction<(filePaths: string[]) => Promise<void>>
+        cb: ProxyMarkedFunction<(filePaths: string[]) => Promise<void>>,
     ) => void;
 }
 

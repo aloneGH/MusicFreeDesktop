@@ -29,7 +29,7 @@ interface IContextMenuData {
     /** 设置子目录 */
     setSubMenu?: (
         subMenu?: Omit<IContextMenuData, "setSubMenu">,
-        menuItem?: IContextMenuItem
+        menuItem?: IContextMenuItem,
     ) => void;
     onItemClick?: (value: any) => void;
 
@@ -103,7 +103,7 @@ function SingleColumnContextMenuComponent(props: IContextMenuData) {
                                     }
 
                                     const realPos =
-                    y +
+                                        y +
                     (e.target as HTMLDivElement).offsetTop -
                     menuContainerRef.current.scrollTop;
                                     const realHeight = Math.min(

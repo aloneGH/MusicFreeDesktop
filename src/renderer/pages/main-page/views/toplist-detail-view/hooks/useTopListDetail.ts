@@ -7,7 +7,7 @@ export default function useTopListDetail(
     platform: string,
 ) {
     const [mergedTopListItem, setMergedTopListItem] =
-    useState<ICommon.WithMusicList<IMusic.IMusicSheetItem> | null>(topListItem);
+        useState<ICommon.WithMusicList<IMusic.IMusicSheetItem> | null>(topListItem);
     const pageRef = useRef(1);
     const [requestState, setRequestState] = useState(RequestStateCode.IDLE);
 

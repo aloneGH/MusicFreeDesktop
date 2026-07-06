@@ -11,7 +11,7 @@ interface IUpdateProps {
 }
 export default function Update(props: IUpdateProps) {
     const { currentVersion, update = {} as ICommon.IUpdateInfo["update"] } =
-    props;
+        props;
 
     const { t } = useTranslation();
 

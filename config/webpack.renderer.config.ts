@@ -59,4 +59,7 @@ export const rendererConfig: Configuration = {
     },
   },
   externals: process.platform !== "darwin" ? ["fsevents"] : undefined,
+  node: {
+    __dirname: true,
+  },
 };

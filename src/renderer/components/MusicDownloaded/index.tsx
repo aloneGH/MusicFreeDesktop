@@ -19,7 +19,7 @@ function MusicDownloaded(props: IMusicDownloadedProps) {
 
     const { t } = useTranslation();
     const isDownloadedOrLocal =
-    downloadState === DownloadState.DONE ||
+        downloadState === DownloadState.DONE ||
     musicItem?.platform === localPluginName;
 
     let iconName: SvgAssetIconNames = "array-download-tray";

@@ -28,9 +28,9 @@ export default function useQueryArtist() {
                 setQueryResults(
                     produce((draft) => {
                         draft[type].state =
-              page === 1
-                  ? RequestStateCode.PENDING_FIRST_PAGE
-                  : RequestStateCode.PENDING_REST_PAGE;
+                            page === 1
+                                ? RequestStateCode.PENDING_FIRST_PAGE
+                                : RequestStateCode.PENDING_REST_PAGE;
                     }),
                 );
                 const result = await PluginManager.callPluginDelegateMethod(
@@ -45,9 +45,9 @@ export default function useQueryArtist() {
                     produce((draft) => {
                         draft[type].page = page;
                         draft[type].state =
-              result?.isEnd === false
-                  ? RequestStateCode.PARTLY_DONE
-                  : RequestStateCode.FINISHED;
+                            result?.isEnd === false
+                                ? RequestStateCode.PARTLY_DONE
+                                : RequestStateCode.FINISHED;
                         draft[type].data = (draft[type].data ?? [] as any[]).concat(
                             result?.data ?? [],
                         );

@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 interface IMod {
     sendCommand: <K extends keyof ICommand>(
         command: K,
-        data?: ICommand[K]
+        data?: ICommand[K],
     ) => void;
     getAppState: () => IAppState;
     subscribeAppState: (keys: (keyof IAppState)[]) => void;
     onStateChange: (
-        cb: (appState: IAppState, changedAppState: IAppState) => void
+        cb: (appState: IAppState, changedAppState: IAppState) => void,
     ) => void;
     offStateChange: (
-        cb: (appState: IAppState, changedAppState: IAppState) => void
+        cb: (appState: IAppState, changedAppState: IAppState) => void,
     ) => void;
 }
 
