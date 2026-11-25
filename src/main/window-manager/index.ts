@@ -24,6 +24,11 @@ declare const MINIMODE_WINDOW_WEBPACK_ENTRY: string;
 declare const MINIMODE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 
+let isAppQuitting = false;
+app.on("before-quit", () => {
+    isAppQuitting = true;
+});
+
 class WindowManager implements IWindowManager {
     private static mainWindow: BrowserWindow | null = null;
     private static lrcWindow: BrowserWindow | null = null;
@@ -172,8 +177,22 @@ class WindowManager implements IWindowManager {
             },
         );
 
+        mainWindow.webContents.on("before-input-event", (event, input) => {
+            if (
+                input.type === "keyDown" &&
+                input.control &&
+                !input.alt &&
+                !input.meta &&
+                !input.shift &&
+                input.key.toLowerCase() === "q"
+            ) {
+                event.preventDefault();
+                app.quit();
+            }
+        });
+
         mainWindow.on("close", (e) => {
-            if (process.platform === "win32" && AppConfig.getConfig("normal.closeBehavior") === "minimize") {
+            if (!isAppQuitting && process.platform === "win32" && AppConfig.getConfig("normal.closeBehavior") === "minimize") {
                 e.preventDefault();
                 mainWindow.hide();
                 mainWindow.setSkipTaskbar(true);

@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useCurrentMusic } from "@renderer/core/track-player/hooks";
 import { useEffect } from "react";
 import { musicDetailShownStore } from "@renderer/components/MusicDetail/store";
+import { getCurrentPanel, hidePanel } from "@renderer/components/Panel";
 
 export const isMusicDetailShown = musicDetailShownStore.getValue;
 export const useMusicDetailShown = musicDetailShownStore.useValue;
@@ -24,6 +25,10 @@ function MusicDetail() {
         const escHandler = (evt: KeyboardEvent) => {
             if (evt.code === "Escape") {
                 evt.preventDefault();
+                if (getCurrentPanel()?.type) {
+                    hidePanel();
+                    return;
+                }
                 musicDetailShownStore.setValue(false);
             }
         };
@@ -73,6 +78,9 @@ function MusicDetail() {
                     </Condition>
                 </span>
                 {musicItem?.platform ? <Tag fill>{musicItem.platform}</Tag> : null}
+                {musicItem?.qualityTag ? (
+                    <Tag style={{ marginLeft: "0.4rem" }}>{musicItem.qualityTag}</Tag>
+                ) : null}
             </div>
             <div className="music-body">
                 <div className="music-album-options">
@@ -94,6 +102,9 @@ MusicDetail.show = () => {
 };
 
 MusicDetail.hide = () => {
+    if (musicDetailShownStore.getValue()) {
+        hidePanel();
+    }
     musicDetailShownStore.setValue(false);
 };
 

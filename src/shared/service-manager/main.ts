@@ -68,7 +68,7 @@ class ServiceInstance {
 
     stop() {
         this.started = false;
-        if (!this.serviceProcess.killed) {
+        if (this.serviceProcess && !this.serviceProcess.killed) {
             this.serviceProcess.removeAllListeners();
             this.serviceProcess.kill();
             this.serviceProcess = null;
@@ -114,11 +114,9 @@ class ServiceManager {
         this.windowManager = windowManager;
 
         app.on("before-quit", () => {
-            if (!windowManager.mainWindow?.isDestroyed()) {
-                this.serviceMap.forEach((val) => {
-                    val.instance.stop();
-                });
-            }
+            this.serviceMap.forEach((val) => {
+                val.instance.stop();
+            });
         });
 
         // put services here

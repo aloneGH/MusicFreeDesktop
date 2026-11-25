@@ -1,5 +1,5 @@
 import "./index.scss";
-import { musicDetailShownStore } from "@renderer/components/MusicDetail/store";
+import MusicDetail from "@renderer/components/MusicDetail";
 import SvgAsset from "@renderer/components/SvgAsset";
 import { useTranslation } from "react-i18next";
 import { appUtil, appWindowUtil } from "@shared/utils/renderer";
@@ -16,7 +16,7 @@ export default function Header() {
             role="button"
             title={t("music_bar.close_music_detail_page")}
             onClick={() => {
-                musicDetailShownStore.setValue(false);
+                MusicDetail.hide();
             }}
         >
             <SvgAsset iconName="chevron-down"></SvgAsset>

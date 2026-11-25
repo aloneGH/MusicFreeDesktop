@@ -40,18 +40,25 @@ export default function App() {
         <>
             {analyser && (showSpectrum !== false) && <SpectrumVisualizer analyserNode={analyser} />}
             <div className="app-container">
-                {/* Conditionally hide AppHeader and body-container content */}
-                {!musicDetailShown && (
-                    <>
-                        <AppHeader></AppHeader>
-                        <div className="body-container">
-                            <Outlet></Outlet>
-                            <PanelComponent></PanelComponent>
-                        </div>
-                    </>
-                )}
+                {/* Hide main content via CSS instead of unmounting to preserve search/playlist scroll state */}
+                <div
+                    style={{
+                        display: musicDetailShown ? "none" : "flex",
+                        flexDirection: "column",
+                        flex: 1,
+                        minHeight: 0,
+                        width: "100%",
+                    }}
+                >
+                    <AppHeader></AppHeader>
+                    <div className="body-container">
+                        <Outlet></Outlet>
+                    </div>
+                </div>
                 {/* MusicDetail is always rendered, but its visibility is managed internally */}
                 <MusicDetail></MusicDetail>
+                {/* PanelComponent is always rendered so PlayList/MusicComment work on MusicDetail too */}
+                <PanelComponent></PanelComponent>
                 {/* MusicBar is always rendered */}
                 <MusicBar></MusicBar>
             </div>

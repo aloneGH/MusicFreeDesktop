@@ -10,10 +10,8 @@ import { PlayerState } from "@/common/constant";
 import ServiceManager from "@shared/service-manager/renderer";
 import ControllerBase from "@renderer/core/track-player/controller/controller-base";
 import { ErrorReason } from "@renderer/core/track-player/enum";
-import Dexie from "dexie";
 import voidCallback from "@/common/void-callback";
 import { IAudioController } from "@/types/audio-controller";
-import Promise = Dexie.Promise;
 
 
 class AudioController extends ControllerBase implements IAudioController {
@@ -22,6 +20,7 @@ class AudioController extends ControllerBase implements IAudioController {
     private audioContext: AudioContext;
     private analyser: AnalyserNode;
     private source: MediaElementAudioSourceNode;
+    private objectUrl: string | null = null;
 
     private _playerState: PlayerState = PlayerState.None;
     get playerState() {
@@ -123,9 +122,19 @@ class AudioController extends ControllerBase implements IAudioController {
         }
     }
 
+    private revokeObjectUrl() {
+        if (this.objectUrl) {
+            URL.revokeObjectURL(this.objectUrl);
+            this.objectUrl = null;
+        }
+    }
+
     destroy(): void {
         this.destroyHls();
         this.reset();
+        if (this.audioContext && this.audioContext.state !== "closed") {
+            this.audioContext.close().catch(voidCallback);
+        }
     }
 
     pause(): void {
@@ -148,6 +157,7 @@ class AudioController extends ControllerBase implements IAudioController {
     }
 
     reset(): void {
+        this.revokeObjectUrl();
         this.playerState = PlayerState.None;
         this.audio.src = "";
         this.audio.removeAttribute("src");
@@ -169,8 +179,15 @@ class AudioController extends ControllerBase implements IAudioController {
         this.audio.loop = isLoop;
     }
 
-    setSinkId(deviceId: string): Promise<void> {
-        return (this.audio as any).setSinkId(deviceId);
+    async setSinkId(deviceId: string): Promise<void> {
+        const tasks: Array<Promise<any>> = [];
+        if (typeof (this.audio as any).setSinkId === "function") {
+            tasks.push((this.audio as any).setSinkId(deviceId));
+        }
+        if (typeof (this.audioContext as any)?.setSinkId === "function") {
+            tasks.push((this.audioContext as any).setSinkId(deviceId));
+        }
+        await Promise.all(tasks);
     }
 
     setSpeed(speed: number): void {
@@ -194,6 +211,7 @@ class AudioController extends ControllerBase implements IAudioController {
         });
 
         // 2. reset track
+        this.revokeObjectUrl();
         this.playerState = PlayerState.None;
         this.audio.src = "";
         this.audio.removeAttribute("src");
@@ -263,6 +281,7 @@ class AudioController extends ControllerBase implements IAudioController {
         }
 
         // 3. set real source
+        this.revokeObjectUrl();
         if (getUrlExt(trackSource.url) === ".m3u8") {
             if (Hls.isSupported()) {
                 this.initHls();
@@ -281,8 +300,13 @@ class AudioController extends ControllerBase implements IAudioController {
                 .then(async (res) => {
                     const blob = await res.blob();
                     if (isSameMedia(this.musicItem, musicItem)) {
-                        this.audio.src = URL.createObjectURL(blob);
+                        this.revokeObjectUrl();
+                        this.objectUrl = URL.createObjectURL(blob);
+                        this.audio.src = this.objectUrl;
                     }
+                })
+                .catch((err) => {
+                    this.onError?.(ErrorReason.EmptyResource, err);
                 });
         } else {
             this.audio.src = url;

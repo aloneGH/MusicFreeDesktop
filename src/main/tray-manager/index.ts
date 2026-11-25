@@ -8,55 +8,6 @@ import windowManager from "@main/window-manager";
 import { IAppConfig } from "@/types/app-config";
 import messageBus from "@shared/message-bus/main";
 
-if (process.platform === "darwin") {
-    Menu.setApplicationMenu(
-        Menu.buildFromTemplate([
-            {
-                label: app.getName(),
-                submenu: [
-                    {
-                        label: t("common.about"),
-                        role: "about",
-                    },
-                    {
-                        label: t("common.exit"),
-                        click() {
-                            app.quit();
-                        },
-                    },
-                ],
-            },
-            {
-                label: t("common.edit"),
-                submenu: [
-                    {
-                        label: t("common.undo"),
-                        accelerator: "Command+Z",
-                        role: "undo",
-                    },
-                    {
-                        label: t("common.redo"),
-                        accelerator: "Shift+Command+Z",
-                        role: "redo",
-                    },
-                    { type: "separator" },
-                    { label: t("common.cut"), accelerator: "Command+X", role: "cut" },
-                    { label: t("common.copy"), accelerator: "Command+C", role: "copy" },
-                    { label: t("common.cut"), accelerator: "Command+V", role: "paste" },
-                    { type: "separator" },
-                    {
-                        label: t("common.select_all"),
-                        accelerator: "Command+A",
-                        role: "selectAll",
-                    },
-                ],
-            },
-        ]),
-    );
-} else {
-    Menu.setApplicationMenu(null);
-}
-
 class TrayManager {
     private static trayInstance: Tray | null = null;
     private windowManager: IWindowManager;
@@ -67,8 +18,60 @@ class TrayManager {
         "normal.language",
     ];
 
+    public buildApplicationMenu() {
+        if (process.platform === "darwin") {
+            Menu.setApplicationMenu(
+                Menu.buildFromTemplate([
+                    {
+                        label: app.getName(),
+                        submenu: [
+                            {
+                                label: t("common.about"),
+                                role: "about",
+                            },
+                            { type: "separator" },
+                            {
+                                label: t("common.exit"),
+                                accelerator: "Command+Q",
+                                role: "quit",
+                            },
+                        ],
+                    },
+                    {
+                        label: t("common.edit"),
+                        submenu: [
+                            {
+                                label: t("common.undo"),
+                                accelerator: "Command+Z",
+                                role: "undo",
+                            },
+                            {
+                                label: t("common.redo"),
+                                accelerator: "Shift+Command+Z",
+                                role: "redo",
+                            },
+                            { type: "separator" },
+                            { label: t("common.cut"), accelerator: "Command+X", role: "cut" },
+                            { label: t("common.copy"), accelerator: "Command+C", role: "copy" },
+                            { label: t("common.paste"), accelerator: "Command+V", role: "paste" },
+                            { type: "separator" },
+                            {
+                                label: t("common.select_all"),
+                                accelerator: "Command+A",
+                                role: "selectAll",
+                            },
+                        ],
+                    },
+                ]),
+            );
+        } else {
+            Menu.setApplicationMenu(null);
+        }
+    }
+
     public setup(windowManager: IWindowManager) {
         this.windowManager = windowManager;
+        this.buildApplicationMenu();
         const tray = new Tray(
             nativeImage.createFromPath(getResourcePath(ResourceName.LOGO_IMAGE)).resize({
                 width: 32,
@@ -111,6 +114,9 @@ class TrayManager {
 
         // 配置变化时更新菜单
         AppConfig.onConfigUpdated((changedConfig) => {
+            if ("normal.language" in changedConfig) {
+                this.buildApplicationMenu();
+            }
             for (const k of this.observedKey) {
                 if (k in changedConfig) {
                     this.buildTrayMenu();
@@ -298,8 +304,8 @@ class TrayManager {
             TrayManager.trayInstance?.setTitle("");
             return;
         }
-        if (title.length > 7) {
-            TrayManager.trayInstance?.setTitle(" " + title.slice(0) + "...");
+        if (title.length > 12) {
+            TrayManager.trayInstance?.setTitle(" " + title.slice(0, 12) + "...");
         } else {
             TrayManager.trayInstance?.setTitle(" " + title);
         }

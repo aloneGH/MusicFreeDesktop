@@ -7,43 +7,83 @@ const maxRetries = 20;
 
 let retryCount = 0;
 
-function forwardRequest(clientRes, url, method, headers) {
+function forwardRequest(clientReq, clientRes, url, method, headers) {
+    let targetUrl;
+    try {
+        targetUrl = new URL(url);
+    } catch (e) {
+        clientRes.writeHead(400, { "Content-Type": "text/plain" });
+        clientRes.end("Bad Request: Invalid URL");
+        return;
+    }
 
     // 确保 host 正确
     let host = headers?.host;
 
     if (!host || host.includes("localhost") || host.includes("127.0.0.1")) {
-        // 如果没有提供 host，且是本地请求，则使用目标 URL 的主机名
-        host = new URL(url).host;
+        host = targetUrl.host;
     }
 
     const options = {
         method: method,
         headers: {
             ...(headers || {}),
-            host, // 确保目标主机名正确
+            host,
         },
     };
 
-    const protocol = url.startsWith("https") ? https : http;
+    const protocol = targetUrl.protocol === "https:" ? https : http;
+    let upstreamRes = null;
 
-    const req = protocol.request(url, options, (targetRes) => {
-        // 将目标响应的状态码和头部转发到客户端
-        clientRes.writeHead(targetRes.statusCode, targetRes.headers);
+    const req = protocol.request(targetUrl, options, (targetRes) => {
+        upstreamRes = targetRes;
 
-        // 将目标响应的数据流转发到客户端
+        targetRes.on("error", (err) => {
+            if (!clientRes.destroyed) {
+                clientRes.destroy(err);
+            }
+        });
+
+        if (!clientRes.headersSent) {
+            clientRes.writeHead(targetRes.statusCode, targetRes.headers);
+        }
+
         targetRes.pipe(clientRes, {
             end: true,
         });
     });
 
-    req.on("error", (error) => {
-        console.error("Error forwarding request:", error);
-        clientRes.writeHead(500, { "Content-Type": "text/plain" });
-        clientRes.end("Internal Server Error");
+    // 客户端切歌/拖动取消请求时，立刻终止上游连接，避免浪费服务器带宽
+    const abortUpstream = () => {
+        if (!req.destroyed) {
+            req.destroy();
+        }
+        if (upstreamRes && !upstreamRes.destroyed) {
+            upstreamRes.destroy();
+        }
+    };
+
+    clientReq.on("aborted", abortUpstream);
+    clientRes.on("close", () => {
+        if (!clientRes.writableEnded) {
+            abortUpstream();
+        }
     });
 
-    // 结束目标请求
+    req.on("error", (error) => {
+        // 客户端主动取消触发的 ECONNRESET/ABORT 无需报错
+        if (clientRes.destroyed || clientReq.aborted) {
+            return;
+        }
+        console.error("Error forwarding request:", error);
+        if (!clientRes.headersSent) {
+            clientRes.writeHead(502, { "Content-Type": "text/plain" });
+            clientRes.end("Bad Gateway");
+        } else if (!clientRes.writableEnded) {
+            clientRes.destroy();
+        }
+    });
+
     req.end();
 }
 
@@ -58,8 +98,6 @@ function safeParse(data) {
 
 
 function startServer(port) {
-
-    // 创建一个 HTTP 服务器
     const server = http.createServer((req, res) => {
         if (req.method !== "GET") {
             res.writeHead(405, { "Content-Type": "text/plain" });
@@ -71,46 +109,47 @@ function startServer(port) {
             return res.end("OK");
         }
 
-        const query = new URLSearchParams(req.url.slice(1));
-
+        const queryIndex = req.url.indexOf("?");
+        const query = new URLSearchParams(queryIndex >= 0 ? req.url.slice(queryIndex + 1) : "");
 
         const url = query.get("url");
-        const method = query.get("method") || "GET"; // 默认使用 GET 方法
+        const method = query.get("method") || "GET";
         const headers = safeParse(query.get("headers"));
 
-        res.setHeader("Access-Control-Allow-Origin", "*"); // 允许所有源
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); // 允许的方法
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 
         if (!url) {
             res.writeHead(400, { "Content-Type": "text/plain" });
             return res.end("Bad Request: Missing URL");
         }
 
-        forwardRequest(res, url, method, {
+        forwardRequest(req, res, url, method, {
             ...(req.headers || {}),
-            ...(headers || {})
+            ...(headers || {}),
         });
     });
 
-    server.listen(port, () => {
+    // 仅监听本机回环地址，防止局域网暴露为开放代理
+    server.listen(port, "127.0.0.1", () => {
         process.send?.({
             type: "port",
-            port
+            port,
         });
-        console.log(`Proxy server is running on http://localhost:${port}`);
+        console.log(`Proxy server is running on http://127.0.0.1:${port}`);
     });
 
     server.on("error", (err) => {
         console.error("Server error:", err);
         if (retryCount < maxRetries) {
             retryCount++;
-            const newPort = port + 1; // 尝试下一个端口
+            const newPort = port + 1;
             console.log(`Retrying on port: ${newPort} (attempt ${retryCount})`);
             startServer(newPort);
         } else {
             process.send?.({ type: "error", error: "Max retries reached" });
         }
-    })
+    });
 }
 
 

@@ -18,6 +18,8 @@ const limitHeight = (h: number, limit: number) => {
 const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const playerState = usePlayerState();
+    const isPlayingRef = useRef(playerState === PlayerState.Playing);
+    const controlRef = useRef<{ setPlaying: (playing: boolean) => void } | null>(null);
 
     useEffect(() => {
         if (!analyserNode) return;
@@ -28,22 +30,15 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
         const canvasCtx = canvas.getContext("2d");
         if (!canvasCtx) return;
 
-        // If music is paused or stopped, clear the canvas and immediately exit to avoid CPU consumption!
-        if (playerState !== PlayerState.Playing) {
-            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-            return;
-        }
-
         // Define layout dimensions in the outer scope to avoid querying window size in every animation frame
         let width = window.innerWidth;
         let height = window.innerHeight;
         let baselineY = height - 64;
-        if (!canvasCtx) return;
 
         // Retina Display scaling (capped at 1.0 for visualizer to maximize rendering performance)
         const dpr = 1.0;
-        canvas.width = window.innerWidth * dpr;
-        canvas.height = window.innerHeight * dpr;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
         canvasCtx.scale(dpr, dpr);
 
         // Create a tiny 64x64 noise pattern to apply dithering and prevent color banding in gradients
@@ -60,12 +55,11 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                 noiseData[i] = val;
                 noiseData[i + 1] = val;
                 noiseData[i + 2] = val;
-                noiseData[i + 3] = Math.floor(Math.random() * 8); // Subtly increased opacity (approx 0% to 2.7%, avg 1.37%) for better dithering
+                noiseData[i + 3] = Math.floor(Math.random() * 8);
             }
             noiseCtx.putImageData(noiseImgData, 0, 0);
             noisePattern = canvasCtx.createPattern(noiseCanvas, "repeat");
         }
-
 
         // Store original values of shared AnalyserNode configuration to restore them during cleanup
         const originalFftSize = analyserNode.fftSize;
@@ -73,7 +67,6 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
 
         // --- Visual Enhancements ---
         analyserNode.fftSize = 1024;
-        // Make bars react faster to the beat
         analyserNode.smoothingTimeConstant = 0.6;
         const bufferLength = analyserNode.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
@@ -84,7 +77,7 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
         const maxBin = Math.max(minBin + 1, Math.floor(bufferLength * 0.85));
         const sampleStep = 8;
         const logLookupTable: Array<{ lowIndex: number; highIndex: number; frac: number }> = [];
-        
+
         for (let i = 0; i < bufferLength; i += sampleStep) {
             const currentT = i / (bufferLength - 1);
             const logIndex = minBin * Math.pow(maxBin / minBin, currentT);
@@ -94,32 +87,60 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             logLookupTable.push({ lowIndex, highIndex, frac });
         }
 
+        // Precompute vocal Gaussian bandpass weights once (avoid 21 Math.exp calls per frame)
+        const vocalStartBin = 4;  // ~172Hz (fundamental start)
+        const vocalEndBin = 24;   // ~1033Hz (fundamental end)
+        const centerVocal = 12;
+        const sigmaVocal = 7;
+        const vocalWeights = new Float32Array(vocalEndBin - vocalStartBin + 1);
+        for (let i = vocalStartBin; i <= vocalEndBin; i++) {
+            vocalWeights[i - vocalStartBin] = Math.exp(
+                -((i - centerVocal) * (i - centerVocal)) / (2 * sigmaVocal * sigmaVocal),
+            );
+        }
+
         // Reusable DOMMatrix to prevent garbage collection GC pressure at 60fps
         const noiseMatrix = typeof DOMMatrix !== "undefined" ? new DOMMatrix() : null;
 
-        // Wave, beat, and rhythm variables
-        let phase1 = 0; // Phase tracker for Wave 1 (Sub-bass driven)
-        let phase2 = 0; // Phase tracker for Wave 2 (Midrange driven)
-        let phase3 = 0; // Phase tracker for Wave 3 (Treble driven)
-        let phaseVocal = 0; // Phase tracker for Vocal Wave (Vocal driven)
-        let baseHue = 0; // Color wheel tracker for smooth rainbow color cycling
+        // Wave, beat, and rhythm variables (persist smoothly across pause/resume & track changes)
+        let phase1 = 0;
+        let phase2 = 0;
+        let phase3 = 0;
+        let phaseVocal = 0;
+        let baseHue = 0;
         let smoothedVolume = 0;
         let rhythmActivity = 0;
         let smoothedVocalX = 0.5;
         let smoothedVocalAmp = 0;
-        let maxVolumeTracked = 0.3; // Track historical peak volume for auto-gain normalization
-        let silentFramesCount = 0;   // Track silence frames to enter zero-CPU idle sleep state
-        let sleepTimeoutId: number | null = null; // Sleep state polling timer ID
+        let maxVolumeTracked = 0.3;
+        let silentFramesCount = 0;
+        let sleepTimeoutId: number | null = null;
+        let animationFrameId: number | null = null;
+        let lastFrameTime = 0;
+        const fpsInterval = 1000 / 60;
         const bassEnergyHistory: number[] = [];
         const historyLimit = 30;
 
-
-
-        let animationFrameId: number;
-        let lastFrameTime = 0;
-        const fpsInterval = 1000 / 60; // Throttle rendering loop to 60 FPS maximum (crucial for 120Hz/ProMotion Mac screens)
+        const stopLoops = (clearCanvas: boolean) => {
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (sleepTimeoutId !== null) {
+                window.clearTimeout(sleepTimeoutId);
+                sleepTimeoutId = null;
+            }
+            if (clearCanvas) {
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        };
 
         const draw = (timestamp: number) => {
+            if (!isPlayingRef.current || document.hidden) {
+                stopLoops(!isPlayingRef.current);
+                return;
+            }
+
             const elapsed = timestamp - lastFrameTime;
             if (elapsed < fpsInterval) {
                 animationFrameId = requestAnimationFrame(draw);
@@ -265,19 +286,11 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             // Update baseHue with full-spectrum color cycling (speeds up during high rhythm activity)
             baseHue = (baseHue + 0.12 + rhythmActivity * 0.5) % 360;
 
-            // Vocal melody track detection (narrowed search range to target the exact fundamental singing pitch window: ~172Hz to ~1033Hz)
+            // Vocal melody track detection (using precomputed Gaussian bandpass weights)
             let maxVocalAmp = 0;
             let vocalPeakBin = 12;
-            const vocalStartBin = 4;  // ~172Hz (fundamental start)
-            const vocalEndBin = 24;   // ~1033Hz (fundamental end)
             for (let i = vocalStartBin; i <= vocalEndBin; i++) {
-                // Apply a bell-curve bandpass weighting centered at G4 (~516Hz, bin 12)
-                // This maximizes response to vocal cores and suppresses low bass/drums and high snare/instrument noise
-                const centerVocal = 12;
-                const sigmaVocal = 7;
-                const weight = Math.exp(-((i - centerVocal) * (i - centerVocal)) / (2 * sigmaVocal * sigmaVocal));
-                
-                const weightedAmp = smoothedValues[i] * weight;
+                const weightedAmp = smoothedValues[i] * vocalWeights[i - vocalStartBin];
                 if (weightedAmp > maxVocalAmp) {
                     maxVocalAmp = weightedAmp;
                     vocalPeakBin = i;
@@ -520,6 +533,10 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
 
         // Sleep state polling machine: checks audio levels every 250ms when idle/paused
         const pollAudio = () => {
+            sleepTimeoutId = null;
+            if (!isPlayingRef.current || document.hidden) {
+                return;
+            }
             analyserNode.getByteFrequencyData(dataArray);
             let frameMax = 0;
             for (let i = 0; i < bufferLength; i++) {
@@ -527,27 +544,51 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
                     frameMax = dataArray[i];
                 }
             }
-            
+
             if (frameMax >= 2) {
-                // Wake up! Sound detected, resume 60fps rendering
                 silentFramesCount = 0;
                 lastFrameTime = performance.now();
                 animationFrameId = requestAnimationFrame(draw);
             } else {
-                // Keep sleeping, poll again in 250ms
                 sleepTimeoutId = window.setTimeout(pollAudio, 250);
             }
         };
 
         const scheduleSleepPoll = () => {
+            animationFrameId = null;
             if (sleepTimeoutId !== null) {
                 window.clearTimeout(sleepTimeoutId);
             }
             sleepTimeoutId = window.setTimeout(pollAudio, 250);
         };
 
-        // Initialize animation loop
-        draw(performance.now());
+        const startLoopIfNeeded = () => {
+            if (!isPlayingRef.current || document.hidden) {
+                return;
+            }
+            if (animationFrameId === null && sleepTimeoutId === null) {
+                silentFramesCount = 0;
+                lastFrameTime = performance.now();
+                animationFrameId = requestAnimationFrame(draw);
+            }
+        };
+
+        controlRef.current = {
+            setPlaying(playing: boolean) {
+                if (playing) {
+                    startLoopIfNeeded();
+                } else {
+                    stopLoops(true);
+                }
+            },
+        };
+
+        // Start immediately if already playing
+        if (isPlayingRef.current) {
+            startLoopIfNeeded();
+        } else {
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Throttled resize handler to prevent lagging/reflow spikes during window resize
         let resizeAnimationFrameId: number | null = null;
@@ -569,26 +610,18 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
         // Page Visibility API Integration: Freeze all loops when the window is hidden/minimized
         const handleVisibilityChange = () => {
             if (document.hidden) {
-                // Instantly suspend both 60fps rendering and the 250ms sleep-polling loops
-                cancelAnimationFrame(animationFrameId);
-                if (sleepTimeoutId !== null) {
-                    window.clearTimeout(sleepTimeoutId);
-                    sleepTimeoutId = null;
-                }
-            } else {
-                // Resume loop check instantly when brought back to foreground
+                stopLoops(false);
+            } else if (isPlayingRef.current) {
                 pollAudio();
             }
         };
         document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
-            cancelAnimationFrame(animationFrameId);
+            controlRef.current = null;
+            stopLoops(false);
             if (resizeAnimationFrameId !== null) {
                 cancelAnimationFrame(resizeAnimationFrameId);
-            }
-            if (sleepTimeoutId !== null) {
-                window.clearTimeout(sleepTimeoutId);
             }
             window.removeEventListener("resize", handleResize);
             document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -597,7 +630,13 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ analyserNode })
             analyserNode.fftSize = originalFftSize;
             analyserNode.smoothingTimeConstant = originalSmoothing;
         };
-    }, [analyserNode, playerState]);
+    }, [analyserNode]);
+
+    useEffect(() => {
+        const playing = playerState === PlayerState.Playing;
+        isPlayingRef.current = playing;
+        controlRef.current?.setPlaying(playing);
+    }, [playerState]);
 
     return <canvas ref={canvasRef} className="spectrum-visualizer" />;
 };

@@ -130,6 +130,8 @@ class TrackPlayer {
 
     private currentIndex = -1;
 
+    private lastProgressPersistTime = 0;
+
     public audioController: IAudioController;
 
     private ee: EventEmitter<InternalPlayerEvents>;
@@ -162,6 +164,14 @@ class TrackPlayer {
             }
         });
 
+        navigator.mediaSession.setActionHandler("play", () => {
+            this.resume();
+        });
+
+        navigator.mediaSession.setActionHandler("pause", () => {
+            this.pause();
+        });
+
         navigator.mediaSession.setActionHandler("nexttrack", () => {
             this.skipToNext();
         });
@@ -169,10 +179,24 @@ class TrackPlayer {
         navigator.mediaSession.setActionHandler("previoustrack", () => {
             this.skipToPrev();
         });
+
+        navigator.mediaSession.setActionHandler("seekto", (details) => {
+            if (typeof details.seekTime === "number" && isFinite(details.seekTime)) {
+                this.seekTo(details.seekTime);
+            }
+        });
+
+        window.addEventListener("beforeunload", () => {
+            const currentTime = this.progress?.currentTime;
+            if (typeof currentTime === "number" && isFinite(currentTime) && currentTime > 0) {
+                setUserPreference("currentProgress", currentTime);
+            }
+        });
     }
 
 
     private createAudioController() {
+        this.audioController?.destroy?.();
         const audioController = new AudioController();
         // 播放结束
         audioController.onEnded = () => {
@@ -349,6 +373,9 @@ class TrackPlayer {
                 autoPlay: true,
             });
 
+            // 后台静默预热队列下一首（仅对支持 /music/stream/ -> /music/prefetch/ 的私有云生效，避免切歌等待）
+            this.prefetchNextTrack(index);
+
             // extra information
             const musicInfo = await PluginManager.callPluginDelegateMethod(
                 {
@@ -362,12 +389,23 @@ class TrackPlayer {
                 return;
             }
 
-            this.setCurrentMusic({
+            const mergedMusic = {
                 ...nextMusicItem,
                 ...musicInfo,
                 platform: nextMusicItem.platform,
                 id: nextMusicItem.id,
-            });
+            };
+            this.setCurrentMusic(mergedMusic);
+            // 顺带同步刷新播放队列中该曲目的封面/专辑等元数据
+            const queueIdx = this.findMusicIndex(mergedMusic);
+            if (queueIdx !== -1) {
+                const updatedQueue = [...this.musicQueue];
+                updatedQueue[queueIdx] = {
+                    ...updatedQueue[queueIdx],
+                    ...mergedMusic,
+                };
+                this.setMusicQueue(updatedQueue);
+            }
 
         } catch (e) {
             // 播放失败
@@ -449,6 +487,11 @@ class TrackPlayer {
 
     public pause() {
         this.audioController.pause();
+        const currentTime = this.progress?.currentTime;
+        if (typeof currentTime === "number" && isFinite(currentTime) && currentTime > 0) {
+            setUserPreference("currentProgress", currentTime);
+            this.lastProgressPersistTime = Date.now();
+        }
         if (this.playerState !== this.audioController.playerState) {
             this.setPlayerState(this.audioController.playerState);
         }
@@ -653,6 +696,7 @@ class TrackPlayer {
 
             if (!lyricSource?.rawLrc && !lyricSource?.translation) {
                 this.setCurrentLyric({});
+                return;
             }
             const parser = new LyricParser(lyricSource.rawLrc, {
                 musicItem: currentMusic,
@@ -727,6 +771,28 @@ class TrackPlayer {
     }
 
 
+    private prefetchNextTrack(currentIdx: number) {
+        if (this.repeatMode === RepeatMode.Loop || this.musicQueue.length <= 1) {
+            return;
+        }
+        const nextIdx = (currentIdx + 1) % this.musicQueue.length;
+        const nextItem = this.musicQueue[nextIdx];
+        if (!nextItem || this.isCurrentMusic(nextItem)) {
+            return;
+        }
+        this.fetchMediaSource(nextItem).then(({ mediaSource }) => {
+            const url = mediaSource?.url;
+            if (!url || !url.includes("/music/stream/")) {
+                return;
+            }
+            const prefetchUrl = url.replace("/music/stream/", "/music/prefetch/");
+            fetch(prefetchUrl, {
+                method: "GET",
+                headers: mediaSource.headers,
+            }).catch(voidCallback);
+        }).catch(voidCallback);
+    }
+
     // 只读数据的设置
     private setCurrentMusic(musicItem: IMusic.IMusicItem | null) {
         if (!this.isCurrentMusic(musicItem)) {
@@ -748,7 +814,11 @@ class TrackPlayer {
 
     private setProgress(progress: CurrentTime) {
         progressStore.setValue(progress);
-        setUserPreference("currentProgress", progress.currentTime);
+        const now = Date.now();
+        if (now - this.lastProgressPersistTime >= 5000) {
+            setUserPreference("currentProgress", progress.currentTime);
+            this.lastProgressPersistTime = now;
+        }
         this.ee.emit(PlayerEvents.ProgressChanged, progress);
     }
 

@@ -1,7 +1,7 @@
 import "./index.scss";
 import Condition, { IfTruthy } from "@/renderer/components/Condition";
 import Loading from "@/renderer/components/Loading";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { showCustomContextMenu } from "@/renderer/components/ContextMenu";
 import {
     getUserPreference,
@@ -131,30 +131,38 @@ export default function Lyric() {
                                 </>
                             }
                         >
-                            {lyricParser?.getLyricItems?.()?.map((lyricItem, index) => (
-                                <>
-                                    <div
-                                        key={index}
-                                        className="lyric-item"
-                                        id={`lyric-item-id-${index}`}
-                                        data-highlight={currentLrc?.index === index}
-                                    >
-                                        {lyricItem.lrc}
-                                    </div>
-                                    <IfTruthy
-                                        condition={lyricParser?.hasTranslation && showTranslation}
-                                    >
+                            {lyricParser?.getLyricItems?.()?.map((lyricItem, index) => {
+                                const seekToLine = () => {
+                                    if (typeof lyricItem.time === "number" && isFinite(lyricItem.time)) {
+                                        const offset = lyricParser?.getMeta?.()?.offset ?? 0;
+                                        trackPlayer.seekTo(Math.max(0, lyricItem.time + offset));
+                                    }
+                                };
+                                return (
+                                    <Fragment key={index}>
                                         <div
-                                            key={"tr" + index}
-                                            className="lyric-item lyric-item-translation"
-                                            id={`tr-lyric-item-id-${index}`}
+                                            className="lyric-item lyric-item-clickable"
+                                            id={`lyric-item-id-${index}`}
                                             data-highlight={currentLrc?.index === index}
+                                            onClick={seekToLine}
                                         >
-                                            {lyricItem.translation}
+                                            {lyricItem.lrc}
                                         </div>
-                                    </IfTruthy>
-                                </>
-                            ))}
+                                        <IfTruthy
+                                            condition={lyricParser?.hasTranslation && showTranslation}
+                                        >
+                                            <div
+                                                className="lyric-item lyric-item-translation lyric-item-clickable"
+                                                id={`tr-lyric-item-id-${index}`}
+                                                data-highlight={currentLrc?.index === index}
+                                                onClick={seekToLine}
+                                            >
+                                                {lyricItem.translation}
+                                            </div>
+                                        </IfTruthy>
+                                    </Fragment>
+                                );
+                            })}
                         </Condition>
                     </Condition>
                 }
